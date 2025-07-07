@@ -10,13 +10,18 @@ THIRD_PARTY_INCLUDES_START
 #include "ArcscriptTranspiler.h"
 THIRD_PARTY_INCLUDES_END
 
+#ifdef _WIN64
+#define strdup _strdup
+#endif
+
 DEFINE_LOG_CATEGORY(LogArcweavePlugin);
+using namespace Arcweave;
 
 FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(FString code, FString elementId, TMap<FString, FArcweaveVariable>& initialVars, TMap<FString, int> visits) {
 	size_t varLength = initialVars.Num();
 	size_t visitsLength = visits.Num();
-	const char* dllCode = _strdup(TCHAR_TO_UTF8(*code));
-	const char* dllElId = _strdup(TCHAR_TO_UTF8(*elementId));
+	const char* dllCode = strdup(TCHAR_TO_UTF8(*code));
+	const char* dllElId = strdup(TCHAR_TO_UTF8(*elementId));
 
     // Transform Unreal variable objects to DLL accepted objects
 	UVariable* dllVars = new UVariable[varLength];
@@ -24,27 +29,26 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(FString code, 
 
 	size_t i = 0;
 	for (auto& var : initialVars) {
-		dllVars[i].id = _strdup(TCHAR_TO_UTF8(*var.Value.Id));
-		dllVars[i].name = _strdup(TCHAR_TO_UTF8(*var.Value.Name));
+		dllVars[i].id = strdup(TCHAR_TO_UTF8(*var.Value.Id));
+		dllVars[i].name = strdup(TCHAR_TO_UTF8(*var.Value.Name));
         dllVars[i].type = VariableType::AW_ANY;
 
-	    UE_LOG(LogArcweavePlugin, Log, TEXT("var_name: %s, var_value %s"), *var.Value.Name, *var.Value.Value);
+	    UE_LOG(LogArcweavePlugin, Log, TEXT("var_name: %s, var_value %s, var_type %s"), *var.Value.Name, *var.Value.Value, *var.Value.Type);
 		if (var.Value.Type.Equals(TEXT("string"))) {
 			dllVars[i].type = VariableType::AW_STRING;
-			dllVars[i].string_val = _strdup(TCHAR_TO_UTF8(*(var.Value.Value)));
+			dllVars[i].string_val = strdup(TCHAR_TO_UTF8(*(var.Value.Value)));
 		}
 		else if (var.Value.Type.Equals(TEXT("integer"))) {
 			dllVars[i].type = VariableType::AW_INTEGER;
 		    TCHAR* EndPtr = nullptr;
 			dllVars[i].int_val = FCString::Strtoi(*var.Value.Value, &EndPtr, 10);
 		}
+	    // here we consider float as double
+	    // because in UVariableChange there is no float possibility
+	    // we will consider every float from the Arcweave platform as double from now on
 		else if (var.Value.Type.Equals(TEXT("float"))) {
 		    dllVars[i].type = VariableType::AW_DOUBLE;
 		    dllVars[i].double_val = FCString::Atod(*var.Value.Value);
-		}
-		else if (var.Value.Type.Equals(TEXT("double"))) {
-			dllVars[i].type = VariableType::AW_DOUBLE;
-			dllVars[i].double_val =  FCString::Atod(*var.Value.Value);
 		}
         else if (var.Value.Type.Equals(TEXT("boolean"))) {
             dllVars[i].type = VariableType::AW_BOOLEAN;
@@ -55,7 +59,7 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(FString code, 
 
     i = 0;
     for (auto& visit : visits) {
-        dllVisits[i].elId = _strdup(TCHAR_TO_UTF8(*visit.Key));
+        dllVisits[i].elId = strdup(TCHAR_TO_UTF8(*visit.Key));
         dllVisits[i].visits = visit.Value;
         i++;
     }
@@ -100,7 +104,7 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(FString code, 
             change.Type = "integer";
             break;
         case VariableType::AW_DOUBLE:
-            change.Type = "double";
+            change.Type = "float";
             break;
         case VariableType::AW_BOOLEAN:
             change.Type = "bool";
@@ -116,7 +120,7 @@ FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(FString code, 
         else if (change.Type == "integer") {
             change.Value = MakeShareable(new FJsonValueNumber(dllResult->changes[i].int_result));
         }
-        else if (change.Type == "double") {
+        else if (change.Type == "float") {
             change.Value = MakeShareable(new FJsonValueNumber(dllResult->changes[i].double_result));
         }
         else if (change.Type == "bool") {

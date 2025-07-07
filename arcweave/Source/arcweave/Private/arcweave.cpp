@@ -4,7 +4,7 @@
 #include "Core.h"
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IPluginManager.h"
-#include "..\Public\ArcweaveSettings.h"
+#include "ArcweaveSettings.h"
 #include "ISettingsModule.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -24,13 +24,14 @@ void FarcweaveModule::StartupModule()
 	FString BaseDir = IPluginManager::Get().FindPlugin("arcweave")->GetBaseDir();
 	FString ArcscriptTranspilerPath;
 #if PLATFORM_WINDOWS
-    FPlatformProcess::AddDllDirectory(*FPaths::Combine(*BaseDir, TEXT("/Source/ThirdParty/ArcscriptTranspiler/x64/Release")));
-    ArcscriptTranspilerPath = FPaths::Combine(*BaseDir, TEXT("/Source/ThirdParty/ArcscriptTranspiler/x64/Release/ArcscriptTranspiler.dll"));
+    FPlatformProcess::AddDllDirectory(*FPaths::Combine(*BaseDir, TEXT("/Source/ThirdParty/ArcscriptTranspiler/lib")));
+    ArcscriptTranspilerPath = FPaths::Combine(*BaseDir, TEXT("/Source/ThirdParty/ArcscriptTranspiler/lib/ArcscriptTranspiler.dll"));
 #elif PLATFORM_MAC
-	//Antlr4LibraryPath = FPaths::Combine(*BaseDir, TEXT("Source/ThirdParty/arcweaveLibrary/Mac/Release/libExampleLibrary.dylib"));
+    ArcscriptTranspilerPath = FPaths::Combine(*BaseDir, TEXT("/Source/ThirdParty/ArcscriptTranspiler/lib/libArcscriptTranspiler.dylib"));
 	#elif PLATFORM_LINUX
 	//Antlr4LibraryPath = FPaths::Combine(*BaseDir, TEXT("Binaries/ThirdParty/arcweaveLibrary/Linux/x86_64-unknown-linux-gnu/libExampleLibrary.so"));
 	#endif // PLATFORM_WINDOWS
+    
 	ArcscriptTranspilerHandle = !ArcscriptTranspilerPath.IsEmpty() ? FPlatformProcess::GetDllHandle(*ArcscriptTranspilerPath) : nullptr;
 
 	if (ArcscriptTranspilerHandle)
@@ -63,7 +64,10 @@ void FarcweaveModule::ShutdownModule()
 	// we call this function before unloading the module.
 	UE_LOG(LogArcwarePlugin, Warning, TEXT("Arcware plugin module shutdown!"));
 	// Free the dll handle
-	FPlatformProcess::FreeDllHandle(ArcscriptTranspilerHandle);
+    if (ArcscriptTranspilerHandle)
+    {
+	    FPlatformProcess::FreeDllHandle(ArcscriptTranspilerHandle);
+    }
 	ArcscriptTranspilerHandle = nullptr;
 #if WITH_EDITOR
 	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
