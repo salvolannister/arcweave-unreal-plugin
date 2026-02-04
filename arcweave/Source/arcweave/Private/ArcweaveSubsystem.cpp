@@ -6,8 +6,8 @@
 #include "Arcweave.h"
 #include "ArcweaveSettings.h"
 #include "ArcweaveTypes.h"
-#include "HttpModule.h"
 #include "Engine/Engine.h"
+#include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
 
@@ -201,8 +201,7 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(FString Condit
         {
             //run the transpiler
             FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
-            int32& VisitsCount = ProjectData.Visits.FindOrAdd(ConditionData.Id); //make sure the visits counter is initialized
-            VisitsCount += 1;
+            ProjectData.Visits[ConditionId] += 1;
             Output = RunTranspiler(ScriptModified, ConditionData.Id, ProjectData.CurrentVars, ProjectData.Visits);
         }
         else
@@ -992,7 +991,25 @@ TMap<FString, int> UArcweaveSubsystem::InitVisits(const TSharedPtr<FJsonObject>&
             AllVisits.Add(BranchPair.Key, 0);
         }
     }
-    
+
+    const TSharedPtr<FJsonObject>* ConditionsObject;
+    if (MainJsonObject->TryGetObjectField(TEXT("conditions"), ConditionsObject))
+    {
+        for (const auto& ConditionPair : ConditionsObject->Get()->Values)
+        {
+            AllVisits.Add(ConditionPair.Key, 0);
+        }
+    }
+
+    const TSharedPtr<FJsonObject>* JumpersObject;
+    if (MainJsonObject->TryGetObjectField(TEXT("jumpers"), JumpersObject))
+    {
+        for (const auto& JumperPair : JumpersObject->Get()->Values)
+        {
+            AllVisits.Add(JumperPair.Key, 0);
+        }
+    }
+
     return AllVisits;
 }
 
