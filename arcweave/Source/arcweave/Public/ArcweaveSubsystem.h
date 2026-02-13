@@ -2,17 +2,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Misc/Paths.h"
-#include "Internationalization/Regex.h"
-#include "Interfaces/IHttpRequest.h"
-#include "HAL/FileManager.h"
-#include "Misc/FileHelper.h"
-#include "Misc/ConfigCacheIni.h"
-#include "Subsystems/GameInstanceSubsystem.h"
-#include "EngineGlobals.h"
-#include "Serialization/JsonSerializer.h"
 #include "ArcweaveTypes.h"
+#include "CoreMinimal.h"
+#include "EngineGlobals.h"
+#include "HAL/FileManager.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Internationalization/Regex.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonSerializer.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+
 #include "ArcweaveSubsystem.generated.h"
 
 struct FArcweaveAPISettings;
@@ -80,6 +81,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FArcscriptTranspilerOutput TranspileCondition(FString ConditionId, bool& Success);
     bool GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj);
+    /* Given a condition Id (e.g. if visit()) gets the corresponding branch id */
+    bool GetBranchForObject(FArcweaveBranchData& OutBranch, const FString& ObjectId, const FArcweaveBoardData& InBoardObj) const;
 
     /*
      * Sets the current state of the variable

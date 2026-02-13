@@ -1,11 +1,14 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
+// File includes
 #include "ArcweaveSubsystem.h"
 
+// Arcweave includes
 #include "Arcweave.h"
 #include "ArcweaveSettings.h"
 #include "ArcweaveTypes.h"
+
+// Engine includes
 #include "Engine/Engine.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
@@ -178,31 +181,44 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(FString Condit
     FArcscriptTranspilerOutput Output;
     FArcweaveConditionData ConditionData;
     FArcweaveBoardData* NewBoardObj = nullptr;
+ 
     if(GetBoardObjectForElement(ConditionId, ConditionData, NewBoardObj) == false)
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for condition id: %s"), *ConditionId);
         return Output;
     }
+
     if (NewBoardObj->BoardId.IsEmpty() || ConditionData.Id.IsEmpty())
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for condition id: %s"), *ConditionId);
         return Output;
     }
+
     try
     {
-        //here we are checking if the condition is a visit counter
-        //this is the format of the visit counter condition
-        //"script": "visits(<span class=\"mention-element mention\" data-id=\"045ab2b6-6d77-43f7-a7b4-e275f41667c3\" data-label=\"Giving healing potion\" data-type=\"element\">giving_healing_potion<\/span>)"
-        //"script": "not visits(<span class=\"mention-element mention\" data-id=\"d852a577-bd1f-44cf-8187-77a86f97baef\" data-label=\"Get potion\" data-type=\"element\">get_potion<\/span>)"
-        //so if there is a string with data-id and the word visits, we will not transpile it
-        //we will just check the counter and return the output
+        /** 
+         * here we are checking if the condition is a visit counter
+         * this is the format of the visit counter condition
+         * "script": "visits(<span class=\"mention-element mention\" data-id=\"045ab2b6-6d77-43f7-a7b4-e275f41667c3\" data-label=\"Giving healing potion\" data-type=\"element\">giving_healing_potion<\/span>)"
+         * "script": "not visits(<span class=\"mention-element mention\" data-id=\"d852a577-bd1f-44cf-8187-77a86f97baef\" data-label=\"Get potion\" data-type=\"element\">get_potion<\/span>)"
+         * so if there is a string with data-id and the word visits, we will not transpile it
+         * we will just check the counter and return the output 
+         */
         FString ScriptDataId = ExtractDataIdFromConditionScriptString(ConditionData.Script);
+
         if (ScriptDataId.IsEmpty())
         {
+            FArcweaveBranchData CurrentBranch;
+            if (!GetBranchForObject(CurrentBranch, ConditionId, *NewBoardObj) || CurrentBranch.Id.IsEmpty())
+            {
+                UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for branch condition with condition id: %s"), *ConditionId);
+                return Output;
+            }
+
             //run the transpiler
             FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
-            ProjectData.Visits[ConditionId] += 1;
-            Output = RunTranspiler(ScriptModified, ConditionData.Id, ProjectData.CurrentVars, ProjectData.Visits);
+            Output = RunTranspiler(ScriptModified, CurrentBranch.Id, ProjectData.CurrentVars, ProjectData.Visits);
+
         }
         else
         {
@@ -242,6 +258,29 @@ bool UArcweaveSubsystem::GetBoardForObject(FString ObjectId, FArcweaveElementDat
             }
         }
     }
+    return false;
+}
+
+bool UArcweaveSubsystem::GetBranchForObject(FArcweaveBranchData& OutBranch, const FString& ObjectId, const FArcweaveBoardData& InBoardObj) const
+{
+    for (auto& Branch : InBoardObj.Branches)
+    {
+        if (ObjectId == Branch.IfCondition.Id || ObjectId == Branch.ElseCondition.Id)
+        {
+            OutBranch = Branch;
+            return true;
+        }
+
+        for (auto& ElseIfCondition : Branch.ElseIfConditions)
+        {
+            if (ElseIfCondition.Id == ObjectId)
+            {
+                OutBranch = Branch;
+                return true;
+            }
+        }
+    }
+
     return false;
 }
 
@@ -366,6 +405,12 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
             break;
         }
 
+    }
+
+    if (Result.IsBranch)
+    {
+        // Increment the branch visit after evaluating all the conditions
+        ProjectData.Visits[Result.BranchData.Id] += 1;
     }
 
     return Result;
