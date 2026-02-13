@@ -81,6 +81,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FArcscriptTranspilerOutput TranspileCondition(FString ConditionId, bool& Success);
     bool GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj);
+    /* Given a condition Id (e.g. if visit()) gets the corresponding branch id */
+    bool GetBranchForObject(FArcweaveBranchData& OutBranch, const FString& ObjectId, const FArcweaveBoardData& InBoardObj) const;
 
     /*
      * Sets the current state of the variable
