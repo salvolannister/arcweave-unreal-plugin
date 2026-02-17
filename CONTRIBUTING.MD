@@ -193,7 +193,7 @@ git rebase origin
   - possible shortcomings
 
 ## Styleguides
-### Commit Messages - [Full Guide](https://github.com/plantuml/plantuml/blob/master/docs/CONVENTIONAL_COMMIT.md)
+### Commit Messages
 
 #### Format
 ```plaintext
