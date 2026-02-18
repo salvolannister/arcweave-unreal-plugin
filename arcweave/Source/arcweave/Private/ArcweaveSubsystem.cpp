@@ -6,8 +6,8 @@
 #include "Arcweave.h"
 #include "ArcweaveSettings.h"
 #include "ArcweaveTypes.h"
-#include "HttpModule.h"
 #include "Engine/Engine.h"
+#include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
 
@@ -991,7 +991,25 @@ TMap<FString, int> UArcweaveSubsystem::InitVisits(const TSharedPtr<FJsonObject>&
             AllVisits.Add(BranchPair.Key, 0);
         }
     }
-    
+
+    const TSharedPtr<FJsonObject>* ConditionsObject;
+    if (MainJsonObject->TryGetObjectField(TEXT("conditions"), ConditionsObject))
+    {
+        for (const auto& ConditionPair : ConditionsObject->Get()->Values)
+        {
+            AllVisits.Add(ConditionPair.Key, 0);
+        }
+    }
+
+    const TSharedPtr<FJsonObject>* JumpersObject;
+    if (MainJsonObject->TryGetObjectField(TEXT("jumpers"), JumpersObject))
+    {
+        for (const auto& JumperPair : JumpersObject->Get()->Values)
+        {
+            AllVisits.Add(JumperPair.Key, 0);
+        }
+    }
+
     return AllVisits;
 }
 
