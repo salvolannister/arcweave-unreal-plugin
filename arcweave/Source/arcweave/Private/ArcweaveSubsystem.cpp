@@ -11,7 +11,6 @@
 // Engine includes
 #include "Engine/Engine.h"
 #include "HttpModule.h"
-#include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
 
