@@ -7,6 +7,7 @@
 #include "ArcweaveSettings.h"
 #include "ArcweaveTypes.h"
 #include "Engine/Engine.h"
+#include "Http.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
@@ -14,6 +15,7 @@
 void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 {
     FString ApiUrl = FString::Printf(TEXT("https://arcweave.com/api/%s/unreal"), *ProjectHash);
+    TryAddLanguageOptionToURL(ApiUrl);
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
     Request->SetVerb("GET");
@@ -26,6 +28,37 @@ void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 
     // Execute the request
     Request->ProcessRequest();
+}
+
+void UArcweaveSubsystem::TryAddLanguageOptionToURL(FString& ApiUrl)
+{
+    const UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    if (!IsValid(ArcweaveSettings))
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("ArcweaveSettings is not valid, cannot add language option to URL"));
+        return;
+    }
+
+    const FString DefaultLocale = ArcweaveSettings->GetLocale();
+    if (!DefaultLocale.IsEmpty())
+    {
+        // Ensure the variable can be safely inserted in a URL by encoding it
+        FString EscapedDefaultLocale = FGenericPlatformHttp::UrlEncode(DefaultLocale);
+        // Add '?' or '&' depending on whether the URL already has query parameters
+        if (!ApiUrl.Contains(TEXT("?")))
+        {
+            ApiUrl += FString::Printf(TEXT("?locale=%s"), *EscapedDefaultLocale);
+        }
+        else
+        {
+            ApiUrl += FString::Printf(TEXT("&locale=%s"), *EscapedDefaultLocale);
+        }
+
+        if (ArcweaveSettings->GetFallbackToDefaultLocale())
+        {
+            ApiUrl += TEXT("&fallbackContents=true");
+        }
+    }
 }
 
 void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)

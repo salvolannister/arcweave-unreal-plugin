@@ -29,7 +29,9 @@ class ARCWEAVE_API UArcweaveSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 	
 public:
+
     void FetchDataFromAPI(FString APIToken, FString ProjectHash);
+
 	/*
 	 * Fetch the data from Arcweave API
 	 */
@@ -119,6 +121,16 @@ protected:
     void LogFetchStatus(const bool& Success, const FString& Message);
 
 private:
+ 
+    /**
+     * Adds the language option to the provided API URL if a specific locale is set.
+     * This function modifies the ApiUrl string in-place by appending a language query parameter
+     * (e.g., "?lang=en" or "&lang=en") based on the DefaultLocale property of the subsystem.
+     * If DefaultLocale is empty or already present in the URL, no changes are made.
+     *
+     * @param ApiUrl The API URL string to which the language option will be added.
+     */
+    void TryAddLanguageOptionToURL(FString& ApiUrl);
 	void HandleFetch(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
     FString RemoveHtmlTags(const FString& InputString);
     TArray<FArcweaveAssetData> ParseComponentAsset(const TSharedPtr<FJsonObject>& ComponentValueObject);
