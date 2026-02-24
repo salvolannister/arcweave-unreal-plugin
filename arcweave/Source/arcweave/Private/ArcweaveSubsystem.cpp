@@ -40,7 +40,7 @@ void UArcweaveSubsystem::TryAddLanguageOptionToURL(FString& ApiUrl)
     }
 
     const FString DefaultLocale = ArcweaveSettings->GetLocale();
-    if (!DefaultLocale.IsEmpty())
+    if (ArcweaveSettings->GetUseLocale() && !DefaultLocale.IsEmpty())
     {
         // Ensure the variable can be safely inserted in a URL by encoding it
         FString EscapedDefaultLocale = FGenericPlatformHttp::UrlEncode(DefaultLocale);
@@ -152,6 +152,27 @@ void UArcweaveSubsystem::SaveArcweaveSettings(const FString& APIToken, const FSt
         ArcweaveSettings->Hash = ProjectHash;
         ArcweaveSettings->SaveConfig();
     }
+}
+
+void UArcweaveSubsystem::SaveArcweaveLanguageSettings(bool bUseLocale, bool bFallbackToDefaultLocale, const FString& CustomLocale)
+{
+    if (GConfig == nullptr)
+    {
+        return;
+    }
+
+    UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    check(IsValid(ArcweaveSettings));
+
+    ArcweaveSettings->SetUseLocale(bUseLocale);
+    if (bUseLocale)
+    {
+        ArcweaveSettings->SetFallbackToDefaultLocale(bFallbackToDefaultLocale);
+        ArcweaveSettings->SetLocale(CustomLocale);
+    }
+
+    ArcweaveSettings->SaveConfig();
+
 }
 
 bool UArcweaveSubsystem::GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj)

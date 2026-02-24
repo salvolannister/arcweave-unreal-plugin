@@ -47,8 +47,14 @@ public:
     /*
      * Save Arcweave API token to settings
      */
-    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    UFUNCTION(BlueprintCallable, Category = "Arcweave| Settings")
     void SaveArcweaveSettings(const FString& APIToken, const FString& ProjectHash);
+
+    /*
+     * Save Arcweave language preferences to settings
+     */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave| Settings")
+    void SaveArcweaveLanguageSettings(bool bUseLocale, bool bFallbackToDefaultLocale, const FString& CustomLocale);
 
     /*
      * Get Arcweave project data
