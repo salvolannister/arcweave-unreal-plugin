@@ -133,6 +133,21 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
             {
                 UE_LOG(LogTemp, Warning, TEXT("Read Hash: %s"), *OutSetttings.Hash);
             }
+
+            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bUseLocale"), OutSetttings.bUseLocale, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read bUseLocale: %d"), OutSetttings.bUseLocale);
+            }
+
+            if(GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Locale"), OutSetttings.Locale, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read Locale: %s"), *OutSetttings.Locale);
+            }
+
+            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bFallbackToDefaultLocale"), OutSetttings.bFallbackToDefaultLocale, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read bFallbackToDefaultLocale: %d"), OutSetttings.bFallbackToDefaultLocale);
+            }
         }
     }
 	return OutSetttings;
