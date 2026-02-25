@@ -2,9 +2,6 @@
 
 #pragma once
 
-// Plugin includes
-#include "ArcweaveTypes.h"
-
 // Engine includes
 #include "CoreMinimal.h"
 #include "EngineGlobals.h"
@@ -17,6 +14,10 @@
 #include "Serialization/JsonSerializer.h"
 #include "Subsystems/EngineSubsystem.h"
 
+// Plugin includes
+#include "ArcweaveTypes.h"
+
+// Generated include
 #include "ArcweaveSubsystem.generated.h"
 
 struct FArcweaveAPISettings;
@@ -65,6 +66,10 @@ public:
      */
     UFUNCTION(BlueprintPure, Category = "Arcweave")
     FArcweaveProjectData GetArcweaveProjectData() const {return ProjectData;};
+
+    /** Return true if in the project config has more than one language/locale */
+    UFUNCTION(BlueprintPure, Category = "Arcweave")
+    bool HasLocales() const;
 
     /*
      * Run transpiler for the element
