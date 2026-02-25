@@ -6,6 +6,9 @@
 #include "Dom/JsonValue.h"
 #include "UObject/Object.h"
 
+// Plugin includes
+#include "ArcweaveLocaleData.h"
+
 #include "ArcweaveTypes.generated.h"
 /**
  * Types for arweave to unreal engine
@@ -499,10 +502,14 @@ struct FArcweaveProjectData
     //project connections
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveConnectionsData> Connections = TArray<FArcweaveConnectionsData>();
-
+ 
+    //project languages, it can be one so this value is an optional
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    TArray<FArcweaveLocaleData> Locales = TArray<FArcweaveLocaleData>();
+ 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TMap<FString, int> Visits = TMap<FString, int>();
-    
+
     //constructor
     FArcweaveProjectData()
         : Name(FString(""))
@@ -511,6 +518,7 @@ struct FArcweaveProjectData
         , Boards(TArray<FArcweaveBoardData>())
         , Components(TArray<FArcweaveComponentData>())
         , Visits(TMap<FString, int>())
+        , Locales(TArray<FArcweaveLocaleData>())
     {}
 };
 
