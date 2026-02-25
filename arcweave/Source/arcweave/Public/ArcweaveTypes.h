@@ -5,8 +5,8 @@
 #include "CoreMinimal.h"
 #include "Dom/JsonValue.h"
 #include "UObject/Object.h"
-#include "ArcweaveTypes.generated.h"
 
+#include "ArcweaveTypes.generated.h"
 /**
  * Types for arweave to unreal engine
  */
@@ -123,20 +123,50 @@ struct FArcweaveAPISettings
 	/*
 	 * API token that you can find in your Arcweave account settings.
 	 */
-	UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+	UPROPERTY(BlueprintReadWrite, Category = "Arcweave| Settings")
 	FString APIToken = FString("");
 
 	/*
 	 * Project hash that we want to retrieve the information for. You can find it by looking at the URL of your project.
 	 */
-	UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+	UPROPERTY(BlueprintReadWrite, Category = "Arcweave| Settings")
 	FString Hash = FString("");
 
-	FArcweaveAPISettings()
-		: EnableRecieveMethodFromLocalJSON(false)
-		, APIToken(FString(""))
-		, Hash(FString(""))
-	{}
+#pragma region Language
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave| Settings", meta = (ToolTip = "Allow using a custom language for the application if available (e.g. en, it, fr ...)"))
+    bool bUseLocale = false;
+
+
+    UPROPERTY(
+        BlueprintReadWrite,
+        Category = "Arcweave| Settings",
+        meta = (
+            EditCondition = "bUseLocale",
+            ToolTip = "Default language used for the application if available (e.g. en, it, fr ...)"
+            )
+    )
+    FString Locale = FString("");
+
+    UPROPERTY(BlueprintReadWrite,
+        Category = "Arcweave| Settings",
+        meta = (
+            EditCondition = "!EnableReceiveMethodFromLocalJSON && bUseLocale",
+            ToolTip = "If the specified language is not available, fallback to the standard language (usually en-us). This option is available only from web api"
+            )
+    )
+    bool bFallbackToDefaultLocale = true;
+
+#pragma endregion
+
+    FArcweaveAPISettings()
+        : EnableRecieveMethodFromLocalJSON(false)
+        , APIToken(FString(""))
+        , Hash(FString(""))
+        , bUseLocale(false)
+        , Locale(FString(""))
+        , bFallbackToDefaultLocale(true)
+    {}
 };
 
 USTRUCT(BlueprintType)
