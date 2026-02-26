@@ -1092,6 +1092,17 @@ TArray<FArcweaveComponentData> UArcweaveSubsystem::ParseComponents(const TShared
     // Parse "components" as an array of component data structs
     TArray<FArcweaveComponentData> Components;
     TArray<FString> ComponentsStringArray;
+ 
+    const UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    FString DesiredLocale = FString("");
+    bool bFallbackToDefaultLanguage = false;
+    if (IsValid(ArcweaveSettings))
+    {
+        //TODO:: SET IT USING the default locale
+        DesiredLocale = !ArcweaveSettings->GetLocale().IsEmpty() ? ArcweaveSettings->GetLocale() : TEXT("en");
+        bFallbackToDefaultLanguage = ArcweaveSettings->GetFallbackToDefaultLocale();
+    }
+
     if (ElementValueObject->TryGetStringArrayField(TEXT("components"), ComponentsStringArray))
     {
         for (const auto& ComponentId : ComponentsStringArray)
@@ -1111,7 +1122,33 @@ TArray<FArcweaveComponentData> UArcweaveSubsystem::ParseComponents(const TShared
                         if (ComponentValueObject.IsValid())
                         {
                             // Extract the "name" and "root"
-                            ComponentValueObject->TryGetStringField(TEXT("name"), ElComponent.Name);
+                            if (HasLocales())
+                            {
+                                FArcweaveLocalizedText LocalizedText;
+                                // In ParseComponents, replace the section where the component name is set with the following:
+
+                                ElComponent.NameLocalizedText = ParseElementTranslations(ComponentValueObject, TEXT("name"));
+                                FString BaseTranslation;
+                                if (ElComponent.NameLocalizedText.GetTranslation(BaseTranslation, DesiredLocale))
+                                {
+                                    ElComponent.Name = BaseTranslation;
+                                }
+                                else if (bFallbackToDefaultLanguage)
+                                {
+                                    // TODO pick the default language from ProjectData.Locales in the respective base element
+                                    // Fallback to "en" if base locale translation not found
+                                    if (ElComponent.NameLocalizedText.GetTranslation(BaseTranslation, TEXT("en")))
+                                    {
+                                        ElComponent.Name = BaseTranslation;
+                                    }
+                                }
+
+                            }
+                            else
+                            {
+                                ComponentValueObject->TryGetStringField(TEXT("name"), ElComponent.Name);
+                            }
+
                             ComponentValueObject->TryGetBoolField(TEXT("root"), ElComponent.Root);
                             ComponentValueObject->TryGetStringArrayField(TEXT("children"), ElComponent.Children);
                             ElComponent.Assets = ParseComponentAsset(ComponentValueObject);
@@ -1223,7 +1260,7 @@ FArcweaveCoverData UArcweaveSubsystem::ParseCoverData(const TSharedPtr<FJsonObje
     return CoverData;
 }
 
-TArray<FArcweaveLocaleData> UArcweaveSubsystem::ParseLocales(const TSharedPtr<FJsonObject>& MainJsonObject)
+TArray<FArcweaveLocaleData> UArcweaveSubsystem::ParseProjectLocales(const TSharedPtr<FJsonObject>& MainJsonObject)
 {
     TArray<FArcweaveLocaleData> Locales;
     const TArray<TSharedPtr<FJsonValue>>* LocalesArray;
@@ -1254,6 +1291,32 @@ TArray<FArcweaveLocaleData> UArcweaveSubsystem::ParseLocales(const TSharedPtr<FJ
     return Locales;
 }
 
+FArcweaveLocalizedText UArcweaveSubsystem::ParseElementTranslations(const TSharedPtr<FJsonObject> ComponentValueObject, const FStringView& FieldName)
+{
+    FArcweaveLocalizedText Localizations;
+    const TSharedPtr<FJsonObject>* NameLocalizedObject;
+    if (ComponentValueObject->TryGetObjectField(FieldName, NameLocalizedObject))
+    {
+        for (const auto& LocalePair : NameLocalizedObject->Get()->Values)
+        {
+            FString Locale = LocalePair.Key;
+            const TSharedPtr<FJsonObject> LocaleTextObject = LocalePair.Value->AsObject();
+            FString Translation;
+            if (LocaleTextObject.IsValid() && LocaleTextObject->TryGetStringField(TEXT("text"), Translation))
+            {
+
+                Localizations.AddTranslation(Locale, Translation);
+            }
+        }
+    }
+    else
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Failed to get localized object field '%s'."), *FString(FieldName));
+    }
+
+    return Localizations;
+}
+
 void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
 {
     TSharedPtr<FJsonObject> RootObject;
@@ -1279,14 +1342,15 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
     // Extract project name and cover data     
     if (RootObject->TryGetStringField(TEXT("name"), ProjectData.Name))
     {
-        ProjectData.Cover = ParseCoverData(RootObject);        
+        // Locales are used later so they need to be on top
+        ProjectData.Locales = ParseProjectLocales(RootObject);
+        ProjectData.Cover = ParseCoverData(RootObject);
         ProjectData.CurrentVars = ParseVariables(RootObject);
         ProjectData.Components = ParseAllComponents(RootObject);
         ProjectData.Conditions = ParseAllConditions(RootObject);
         ProjectData.Connections = ParseAllConnections(RootObject);
         ProjectData.Boards = ParseBoard(RootObject);
         ProjectData.Visits = InitVisits(RootObject);
-        ProjectData.Locales = ParseLocales(RootObject);
         OnArcweaveResponseReceived.Broadcast(ProjectData);
         //LogStructFieldsRecursive(&ProjectData, FArcweaveProjectData::StaticStruct(),0);
     }
