@@ -8,6 +8,7 @@
 
 // Plugin includes
 #include "ArcweaveLocaleData.h"
+#include "ArcweaveLocalizedText.h"
 
 #include "ArcweaveTypes.generated.h"
 /**
@@ -272,6 +273,9 @@ struct FArcweaveComponentData
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveAttributeData> Attributes = TArray<FArcweaveAttributeData>();
+
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    FArcweaveLocalizedText NameLocalizedText;
 
     FArcweaveComponentData()
         : Id(FString(""))
