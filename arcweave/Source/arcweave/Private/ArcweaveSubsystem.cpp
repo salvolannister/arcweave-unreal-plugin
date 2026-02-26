@@ -1223,6 +1223,37 @@ FArcweaveCoverData UArcweaveSubsystem::ParseCoverData(const TSharedPtr<FJsonObje
     return CoverData;
 }
 
+TArray<FArcweaveLocaleData> UArcweaveSubsystem::ParseLocales(const TSharedPtr<FJsonObject>& MainJsonObject)
+{
+    TArray<FArcweaveLocaleData> Locales;
+    const TArray<TSharedPtr<FJsonValue>>* LocalesArray;
+
+    if (MainJsonObject->TryGetArrayField(TEXT("locales"), LocalesArray))
+    {
+        for (const TSharedPtr<FJsonValue>& LocaleValue : *LocalesArray)
+        {
+            const TSharedPtr<FJsonObject>* LocaleObject;
+            if (LocaleValue->TryGetObject(LocaleObject))
+            {
+                FArcweaveLocaleData LocaleData;
+                (*LocaleObject)->TryGetStringField(TEXT("iso"), LocaleData.Iso);
+                (*LocaleObject)->TryGetStringField(TEXT("name"), LocaleData.Name);
+                // "base" can be null, so check if it exists and is a string
+                if ((*LocaleObject)->HasField(TEXT("base")))
+                {
+                    (*LocaleObject)->TryGetStringField(TEXT("base"), LocaleData.Base);
+                }
+                else
+                {
+                    LocaleData.Base = FString("");
+                }
+                Locales.Add(LocaleData);
+            }
+        }
+    }
+    return Locales;
+}
+
 void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
 {
     TSharedPtr<FJsonObject> RootObject;
@@ -1255,6 +1286,7 @@ void UArcweaveSubsystem::ParseResponse(const FString& ResponseString)
         ProjectData.Connections = ParseAllConnections(RootObject);
         ProjectData.Boards = ParseBoard(RootObject);
         ProjectData.Visits = InitVisits(RootObject);
+        ProjectData.Locales = ParseLocales(RootObject);
         OnArcweaveResponseReceived.Broadcast(ProjectData);
         //LogStructFieldsRecursive(&ProjectData, FArcweaveProjectData::StaticStruct(),0);
     }
