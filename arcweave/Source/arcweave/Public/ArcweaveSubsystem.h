@@ -161,6 +161,8 @@ private:
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
     bool IsScriptVisitsPositive(const FString& ConditionScript);
+    /** Check if ContentToTest contains code that needs transpiling */
+    bool ContainsCodePattern(const FString& ContentToTest) const;
 
 private:
     UPROPERTY()

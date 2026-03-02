@@ -171,6 +171,14 @@ bool UArcweaveSubsystem::IsScriptVisitsPositive(const FString& ConditionScript)
     return false;
 }
 
+bool UArcweaveSubsystem::ContainsCodePattern(const FString& ContentToTest) const
+{
+    const FRegexPattern CodeBlockPattern(TEXT(R"(<pre><code>[\s\S]*?</code></pre>)"));
+    FRegexMatcher Matcher(CodeBlockPattern, ContentToTest);
+
+    return Matcher.FindNext();
+}
+
 FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(FString ConditionId, bool& Success)
 {
     UE_LOG(LogArcwarePlugin, Log, TEXT("----- TranspileCondition for id: %s -----"), *ConditionId);
@@ -387,11 +395,7 @@ FArcweaveConnectionsData UArcweaveSubsystem::GetConnectionsData(const FArcweaveB
 
 FString UArcweaveSubsystem::GetUpdatedConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData)
 {
-    // Check if label contains code that needs transpiling
-    const FRegexPattern CodeBlockPattern(TEXT(R"(<pre><code>[\s\S]*?</code></pre>)"));
-    FRegexMatcher Matcher(CodeBlockPattern, Connection.Label);
-
-    if (Matcher.FindNext())
+    if (ContainsCodePattern(Connection.Label))
     {
             bool bSuccess = false;
             FArcscriptTranspilerOutput Output = TranspileConnection(
@@ -716,9 +720,8 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
 
                                 if (ConObject->TryGetStringField(TEXT("label"), RawLabel))
                                 {
-                                    const FRegexPattern CodeBlockPattern(TEXT(R"(<pre><code>[\s\S]*?</code></pre>)"));
-                                    FRegexMatcher Matcher(CodeBlockPattern, RawLabel);
-                                    if (Matcher.FindNext())
+
+                                    if (ContainsCodePattern(RawLabel))
                                     {
                                         // Keep the raw code so it can be analyzed later
                                         Connection.Label = RawLabel;
