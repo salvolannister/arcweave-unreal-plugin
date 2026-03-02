@@ -385,6 +385,32 @@ FArcweaveConnectionsData UArcweaveSubsystem::GetConnectionsData(const FArcweaveB
         return Result;
 }
 
+FString UArcweaveSubsystem::GetUpdatedConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData)
+{
+    // Check if label contains code that needs transpiling
+    const FRegexPattern CodeBlockPattern(TEXT(R"(<pre><code>[\s\S]*?</code></pre>)"));
+    FRegexMatcher Matcher(CodeBlockPattern, Connection.Label);
+
+    if (Matcher.FindNext())
+    {
+            bool bSuccess = false;
+            FArcscriptTranspilerOutput Output = TranspileConnection(
+                Connection.Id,
+                Connection.Label,
+                bSuccess,
+                true,
+                BoardData
+            );
+
+            if (bSuccess)
+            {
+                return Output.Output;
+            }
+    }
+
+    return Connection.Label;
+}
+
 FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success, bool bStripHtmlTags /*true*/)
 {
     Success = false;
@@ -429,7 +455,7 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
     const FString ScriptData,
     bool& Success,
     bool bStripHtmlTags,
-    FArcweaveBoardData& BoardObjRef)
+    const FArcweaveBoardData& BoardObjRef)
 {
     Success = false;
     FArcscriptTranspilerOutput Output;
@@ -694,24 +720,12 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
                                     FRegexMatcher Matcher(CodeBlockPattern, RawLabel);
                                     if (Matcher.FindNext())
                                     {
-                                        bool bTranspileSucceeded = false;
-                                        FArcscriptTranspilerOutput TranspilerOutput = TranspileConnection(
-                                            Connection.Id,
-                                            RawLabel,
-                                            bTranspileSucceeded,
-                                            true,
-                                            BoardObjRef);
-
-                                        if (!bTranspileSucceeded)
-                                        {
-                                            UE_LOG(LogArcwarePlugin, Error,
-                                                TEXT("Transpile failed for connection %s"), *Connection.Id);
-                                            //Connection.Label = RemoveHtmlTags(RawLabel);
-                                        }
-                                        Connection.Label = TranspilerOutput.Output;
+                                        // Keep the raw code so it can be analyzed later
+                                        Connection.Label = RawLabel;
                                     }
                                     else
                                     {
+                                        // no code: html tag can be removed
                                         Connection.Label = RemoveHtmlTags(RawLabel);
                                     }
                                 }

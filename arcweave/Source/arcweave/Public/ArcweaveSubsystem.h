@@ -2,17 +2,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Misc/Paths.h"
-#include "Internationalization/Regex.h"
-#include "Interfaces/IHttpRequest.h"
-#include "HAL/FileManager.h"
-#include "Misc/FileHelper.h"
-#include "Misc/ConfigCacheIni.h"
-#include "Subsystems/GameInstanceSubsystem.h"
-#include "EngineGlobals.h"
-#include "Serialization/JsonSerializer.h"
 #include "ArcweaveTypes.h"
+#include "CoreMinimal.h"
+#include "EngineGlobals.h"
+#include "HAL/FileManager.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Internationalization/Regex.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonSerializer.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+
 #include "ArcweaveSubsystem.generated.h"
 
 struct FArcweaveAPISettings;
@@ -71,7 +72,7 @@ public:
     const FString ScriptData,
     bool& Success,
     bool bStripHtmlTags,
-    FArcweaveBoardData& BoardObjRef);
+    const FArcweaveBoardData& BoardObjRef);
     bool GetBoardForConnection(FString ConnectionId, FArcweaveConnectionsData& OutConnection, FArcweaveBoardData*& OutBoardObj);
 
     /*
@@ -101,6 +102,13 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")    
     FArcweaveConnectionsData GetConnectionsData(const FArcweaveBoardData BoardData, const FString& ConnectionId) const;
+
+    /*
+    * Update the label for the connection if contains some code,
+    * otherwise fallback to the raw label stored while parsing the content
+    */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    FString GetUpdatedConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData);
 
 public:
     
