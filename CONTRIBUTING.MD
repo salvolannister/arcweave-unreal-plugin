@@ -110,7 +110,7 @@ git init
 then go to the fork of the arcweave plugin and copy the URL that you find by clicking "Code" and then under "HTTPS" (for example: https://github.com/salvolannister/arcweave-unreal-plugin.git). Then run:
 
 ```sh
-git remote add YOUR_URL
+git remote add -f main YOUR_URL
 ```
 
 #### Making Changes
@@ -181,7 +181,7 @@ git rebase origin
   - possible shortcomings
 
 ## Styleguides
-### Commit Messages - [Full Guide](https://github.com/plantuml/plantuml/blob/master/docs/CONVENTIONAL_COMMIT.md)
+### Commit Messages
 
 #### Format
 ```plaintext
