@@ -90,6 +90,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     void SetVariable(FString Id, FString NewValue);
 
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    void UpdateVariablesFromConnection(const FArcweaveConnectionsData& Connection);
+
     /*
      * Check if the target is the branch
      */    
@@ -105,10 +108,11 @@ public:
 
     /*
     * Update the label for the connection if contains some code,
-    * otherwise fallback to the raw label stored while parsing the content
+    * otherwise fallback to the raw label stored while parsing the content.
+    * Warning: Will not update the global variable values
     */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
-    FString GetUpdatedConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData);
+    FString TranspileConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData);
 
 public:
     
@@ -152,7 +156,8 @@ private:
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
     void ParseResponse(const FString& ResponseString);
     void OnEventCallback(const char* EventName);
-    FArcscriptTranspilerOutput RunTranspiler(FString Code, FString ElementId, TMap<FString, FArcweaveVariable> InitialVars, TMap<FString, int> Visits);
+    FArcscriptTranspilerOutput RunTranspiler(FString Code, FString ElementId, TMap<FString, FArcweaveVariable> InitialVars, TMap<FString, int> Visits, bool bShouldUpdateVariables = true);
+    void UpdateVariables(const FArcscriptTranspilerOutput& Output);
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId, FArcweaveBoardData& BoardObjRef);
     void EvaluateCondition(const FArcweaveConditionData& Condition, FArcscriptTranspilerOutput& TranspilerOutput);
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);

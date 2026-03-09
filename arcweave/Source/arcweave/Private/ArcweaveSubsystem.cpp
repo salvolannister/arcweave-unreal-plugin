@@ -393,23 +393,21 @@ FArcweaveConnectionsData UArcweaveSubsystem::GetConnectionsData(const FArcweaveB
         return Result;
 }
 
-FString UArcweaveSubsystem::GetUpdatedConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData)
+FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData)
 {
-    if (ContainsCodePattern(Connection.Label))
-    {
-            bool bSuccess = false;
-            FArcscriptTranspilerOutput Output = TranspileConnection(
-                Connection.Id,
-                Connection.Label,
-                bSuccess,
-                true,
-                BoardData
-            );
 
-            if (bSuccess)
-            {
-                return Output.Output;
-            }
+    bool bSuccess = false;
+    FArcscriptTranspilerOutput Output = TranspileConnection(
+        Connection.Id,
+        Connection.Label,
+        bSuccess,
+        true,
+        BoardData
+    );
+
+    if (bSuccess)
+    {
+        return Output.Output;
     }
 
     return Connection.Label;
@@ -469,10 +467,9 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
         UE_LOG(LogArcwarePlugin, Error, TEXT(" Cannot find transpile data for connection id: %s"), *ConnectionId);
         return Output;
     }
-    //run the transpiler
+
     try
     {
-        //FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
         if (ProjectData.Visits.Contains(ConnectionId))
         {
             ProjectData.Visits[ConnectionId] += 1;
@@ -481,13 +478,18 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
         {
             ProjectData.Visits.Add(ConnectionId, 1);
         }
-        Output = RunTranspiler(ScriptData, ConnectionId, ProjectData.CurrentVars, ProjectData.Visits);
+
+        Output = RunTranspiler(ScriptData, ConnectionId, ProjectData.CurrentVars, ProjectData.Visits, false);
+
         if (bStripHtmlTags)
         {
             Output.Output = RemoveHtmlTags(Output.Output);
         }
         //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id: %s is: %d"), *ObjectId, ProjectData.Visits[ObjectId]);
-        Success = true;
+        if (!Output.Output.IsEmpty())
+        {
+            Success = true;
+        }
     }
     catch (...)
     {
@@ -1226,74 +1228,117 @@ void UArcweaveSubsystem::OnEventCallback(const char* EventName)
 }
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(FString Code, FString ElementId,
-    TMap<FString, FArcweaveVariable> InitialVars, TMap<FString, int> Visits)
+    TMap<FString, FArcweaveVariable> InitialVars, TMap<FString, int> Visits, bool bShouldUpdateVariables /* = true*/)
 {
+    // Create output
     FArcscriptTranspilerOutput Output;
-    bool IsVariableChanged = false;
 
     FarcweaveModule* arcweaveModule = FModuleManager::GetModulePtr<FarcweaveModule>("Arcweave");
     UArcscriptTranspilerWrapper* ArcscriptWrapper = arcweaveModule->getArcscriptWrapper();
+
+    // allocate arcscript wrapper
+    
     if (ArcscriptWrapper)
     {
         UE_LOG(LogArcwarePlugin, Display, TEXT("Code=%s"), *Code);
         UE_LOG(LogArcwarePlugin, Display, TEXT("ElementId=%s"), *ElementId);
         Output = ArcscriptWrapper->RunScript(Code, ElementId, InitialVars, Visits, std::bind(&UArcweaveSubsystem::OnEventCallback, this, std::placeholders::_1));
         LogTranspilerOutput(Output);
-        // brodacast event if there where any changes
-        TArray<FArcweaveVariable> ChangedVariables;
-        for (const FArcscriptVariableChange& Change : Output.Changes)
-        {
-            if (Change.Value.IsValid())
-            {
-                IsVariableChanged = true;
-                FArcweaveVariable Variable;
-                Variable.Id = Change.Id;
-                Variable.Type = Change.Type;
-                Variable.Name = ProjectData.CurrentVars.Contains(Change.Id) ? ProjectData.CurrentVars[Change.Id].Name : "Unknown";
-                UE_LOG(LogArcwarePlugin, Display, TEXT("Id='%s'"), *Change.Id);
-                UE_LOG(LogArcwarePlugin, Display, TEXT("Type='%s'"), *Change.Type);
-                if (Change.Type == "string") {
-                    Variable.Value = Change.Value->AsString();
-                }
-                else if (Variable.Type == "integer") {
-                    int outInt = 0;
-                    Change.Value->TryGetNumber(outInt);
-                    Variable.Value.AppendInt(outInt);
-                }
-                else if (Variable.Type == "bool") {
-                    Variable.Value = FString::Printf(TEXT("%s"), Change.Value->AsBool() ? TEXT("true") : TEXT("false"));
-                }
-                else if (Variable.Type == "float")
-                {
-                    float outFloat = 0;
-                    Change.Value->TryGetNumber(outFloat);
-                    Variable.Value = FString::SanitizeFloat(outFloat);
-                }
-                ChangedVariables.Add(Variable);
 
-                //find this variable in project data and update it
-                for (auto& VarPair : ProjectData.CurrentVars)
-                {
-                    if (VarPair.Key == Variable.Id)
-                    {
-                        VarPair.Value.Value = Variable.Value;
-                        UE_LOG(LogArcwarePlugin, Display, TEXT("Update variable id %s, value %s"), *Variable.Id, *VarPair.Value.Value);
-                        break;
-                    }
-                }
-            }
-        }
-        if (IsVariableChanged)
+        if (bShouldUpdateVariables)
         {
-            OnArcweaveVariableChanged.Broadcast(ChangedVariables);            
+            UpdateVariables(Output);
         }
+
     }
-    else {
+    else
+    {
         UE_LOG(LogArcwarePlugin, Error, TEXT("ArcscriptWrapper not initialized"));
     }
     
     return Output;
 }
+
+void UArcweaveSubsystem::UpdateVariables(const FArcscriptTranspilerOutput& Output)
+{
+    bool IsVariableChanged = false;
+    TArray<FArcweaveVariable> ChangedVariables;
+    for (const FArcscriptVariableChange& Change : Output.Changes)
+    {
+        if (Change.Value.IsValid())
+        {
+            IsVariableChanged = true;
+            FArcweaveVariable Variable;
+            Variable.Id = Change.Id;
+            Variable.Type = Change.Type;
+            Variable.Name = ProjectData.CurrentVars.Contains(Change.Id) ? ProjectData.CurrentVars[Change.Id].Name : "Unknown";
+
+            UE_LOG(LogArcwarePlugin, Display, TEXT("Id='%s'"), *Change.Id);
+            UE_LOG(LogArcwarePlugin, Display, TEXT("Type='%s'"), *Change.Type);
+
+            if (Change.Type == "string")
+            {
+                Variable.Value = Change.Value->AsString();
+            }
+            else if (Variable.Type == "integer")
+            {
+                int outInt = 0;
+                Change.Value->TryGetNumber(outInt);
+                Variable.Value.AppendInt(outInt);
+            }
+            else if (Variable.Type == "bool")
+            {
+                Variable.Value = FString::Printf(TEXT("%s"), Change.Value->AsBool() ? TEXT("true") : TEXT("false"));
+            }
+            else if (Variable.Type == "float")
+            {
+                float outFloat = 0;
+                Change.Value->TryGetNumber(outFloat);
+                Variable.Value = FString::SanitizeFloat(outFloat);
+            }
+
+            ChangedVariables.Add(Variable);
+
+            //find this variable in project data and update it
+            for (auto& VarPair : ProjectData.CurrentVars)
+            {
+                if (VarPair.Key == Variable.Id)
+                {
+                    VarPair.Value.Value = Variable.Value;
+                    UE_LOG(LogArcwarePlugin, Display, TEXT("Update variable id %s, value %s"), *Variable.Id, *VarPair.Value.Value);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Broadcast changes
+    if (IsVariableChanged)
+    {
+        OnArcweaveVariableChanged.Broadcast(ChangedVariables);
+    }
+}
+
+void UArcweaveSubsystem::UpdateVariablesFromConnection(const FArcweaveConnectionsData& Connection)
+{
+
+    //find the connection in the project data
+    for (const FArcweaveBoardData& Board : ProjectData.Boards)
+    {
+        for (const FArcweaveConnectionsData& Con : Board.Connections)
+        {
+            if (Con.Id == Connection.Id)
+            {
+                RunTranspiler(Con.Label, Con.Id, ProjectData.CurrentVars, ProjectData.Visits, true);
+                return;
+            }
+        }
+    }
+
+    UE_LOG(LogArcwarePlugin, Warning, TEXT("Connection with id %s not found in project data"), *Connection.Id);
+
+}
+
 
 void UArcweaveSubsystem::LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput)
 {
