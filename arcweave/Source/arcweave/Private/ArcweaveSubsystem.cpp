@@ -477,7 +477,7 @@ FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool&
     //run the transpiler
     try
     {
-        ProjectData.Visits[ObjectId] += 1;
+        Element.IncrementVisit();
         FArcscriptTranspilerOutput Output = RunTranspiler(Element.Content, Element.Id, ProjectData.CurrentVars, ProjectData.Visits);
         //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id: %s is: %d"), *ObjectId, NewBoardObj->Visits[ObjectId]);
         if (bStripHtmlTags)

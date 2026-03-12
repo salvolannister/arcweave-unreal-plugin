@@ -2,10 +2,10 @@
 
 #pragma once
 
+#include "ArcweaveTypes.generated.h"
 #include "CoreMinimal.h"
 #include "Dom/JsonValue.h"
 #include "UObject/Object.h"
-#include "ArcweaveTypes.generated.h"
 
 /**
  * Types for arweave to unreal engine
@@ -369,6 +369,22 @@ struct FArcweaveElementData
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveAttributeData> Attributes = TArray<FArcweaveAttributeData>();
 
+public:
+    int32 GetVisits() const
+    {
+        return Visits;
+    }
+
+    void IncrementVisit()
+    {
+        Visits++;
+    }
+
+    void ResetVisit()
+    {
+        Visits = 0;
+    }
+
     FArcweaveElementData()
         : Id(FString(""))
         , Theme(FString(""))
@@ -378,7 +394,12 @@ struct FArcweaveElementData
         , Components(TArray<FArcweaveComponentData>())
         , Assets(TMap<FString, FArcweaveAssetData>())
         , Attributes(TArray<FArcweaveAttributeData>())
+        , Visits(0)
     {}
+
+private:
+    /** Times the element has been evaluted */
+    int32 Visits = 0;
 };
 
 USTRUCT(BlueprintType)
