@@ -2,3 +2,4 @@
 arcweave/Binaries/*
 arcweave/Intermediate/*
 .DS_Store
+.vs
