@@ -64,22 +64,22 @@ public:
 
     /*
      * Run transpiler for the connection, labels only for now
-     * Increase visits counter for the element
      */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     FArcscriptTranspilerOutput TranspileConnection(
-    FString ConnectionId,
-    const FString ScriptData,
-    bool& Success,
-    bool bStripHtmlTags,
-    const FArcweaveBoardData& BoardObjRef);
+        const FString& ConnectionId,
+        const FString& ScriptData,
+        const FString& OriginElementId,
+        bool& Success,
+        bool bStripHtmlTags,
+        const FArcweaveBoardData& BoardObjRef);
     bool GetBoardForConnection(FString ConnectionId, FArcweaveConnectionsData& OutConnection, FArcweaveBoardData*& OutBoardObj);
 
     /*
      * Run transpiler for the condition
      */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
-    FArcscriptTranspilerOutput TranspileCondition(FString ConditionId, bool& Success);
+    FArcscriptTranspilerOutput TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success);
     bool GetBoardForObject(FString ObjectId, FArcweaveElementData& OutElement, FArcweaveBoardData*& OutBoardObj);
     /* Given a condition Id (e.g. if visit()) gets the corresponding branch id */
     bool GetBranchForObject(FArcweaveBranchData& OutBranch, const FString& ObjectId, const FArcweaveBoardData& InBoardObj) const;
@@ -158,19 +158,25 @@ private:
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
     void ParseResponse(const FString& ResponseString);
     void OnEventCallback(const char* EventName);
-    FArcscriptTranspilerOutput RunTranspiler(FString Code, FString ElementId, TMap<FString, FArcweaveVariable> InitialVars, TMap<FString, int> Visits, bool bShouldUpdateVariables = true);
+    FArcscriptTranspilerOutput RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
+        const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables = true);
     void UpdateVariables(const FArcscriptTranspilerOutput& Output);
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId, FArcweaveBoardData& BoardObjRef);
-    void EvaluateCondition(const FArcweaveConditionData& Condition, FArcscriptTranspilerOutput& TranspilerOutput);
+    void EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId, FArcscriptTranspilerOutput& TranspilerOutput);
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
 
     FString ExtractDataIdFromConditionScriptString(const FString& ConditionScript);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
     bool IsScriptVisitsPositive(const FString& ConditionScript);
+    /* Increment visit counter for the given element id*/
+    void IncrementVisits(const FString& ElementId);
+    void ResetVisits();
     /** Check if ContentToTest contains code that needs transpiling */
     bool ContainsCodePattern(const FString& ContentToTest) const;
 
+    UFUNCTION(BlueprintCallable, Category = "Arcweave | Debug")
+    void PrintBranchData(const FArcweaveBranchData &InData);
 private:
     UPROPERTY()
     FArcweaveProjectData ProjectData = FArcweaveProjectData();

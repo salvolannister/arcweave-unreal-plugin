@@ -490,7 +490,7 @@ struct FGetIsTargetBranchOutput
 {
     GENERATED_BODY()
 
-    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave", meta = (ToolTip = "Has at least one if condition"))
     bool IsBranch = false;
 
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")

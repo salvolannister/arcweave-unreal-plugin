@@ -2,7 +2,9 @@
 
 #pragma once
 
+// Plugin headers
 #include "ArcweaveTypes.h"
+
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include  <functional>
@@ -41,7 +43,7 @@ public:
     FArcscriptTranspilerOutput RunScript(
         const FString& code,
         const FString& elementId,
-        TMap<FString, FArcweaveVariable>& initialVars,
+        const TMap<FString, FArcweaveVariable>& initialVars,
         const TMap<FString, int>& visits,
         std::function<void(const char*)> onEvent
     );
