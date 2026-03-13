@@ -17,7 +17,7 @@ DEFINE_LOG_CATEGORY(LogArcweavePlugin);
 using namespace Arcweave;
 
 
-FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(FString code, FString elementId, TMap<FString, FArcweaveVariable>& initialVars, TMap<FString, int> visits, std::function<void(const char*)> onEvent) {
+FArcscriptTranspilerOutput UArcscriptTranspilerWrapper::RunScript(const FString& code, const FString& elementId, TMap<FString, FArcweaveVariable>& initialVars, const TMap<FString, int>& visits, std::function<void(const char*)> onEvent) {
 	size_t varLength = initialVars.Num();
 	size_t visitsLength = visits.Num();
 	const char* dllCode = strdup(TCHAR_TO_UTF8(*code));
