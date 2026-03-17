@@ -159,21 +159,6 @@ bool UArcweaveSubsystem::GetBoardObjectForElement(FString ConditionId, FArcweave
     return false;
 }
 
-bool UArcweaveSubsystem::IsScriptVisitsPositive(const FString& ConditionScript)
-{
-    // Check for "not visits" first to handle the negation case
-    if (ConditionScript.Contains(TEXT("not visits"), ESearchCase::IgnoreCase, ESearchDir::FromStart))
-    {
-        return false;
-    }
-    else if (ConditionScript.Contains(TEXT("visits"), ESearchCase::IgnoreCase, ESearchDir::FromStart))
-    {
-        return true; // Found a relevant mention
-    }
-    
-    return false;
-}
-
 bool UArcweaveSubsystem::ContainsCodePattern(const FString& ContentToTest) const
 {
     const FRegexPattern CodeBlockPattern(TEXT(R"(<pre><code>[\s\S]*?</code></pre>)"));
@@ -246,46 +231,18 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString&
 
     try
     {
-        /** 
-         * here we are checking if the condition is a visit counter
-         * this is the format of the visit counter condition
-         * "script": "visits(<span class=\"mention-element mention\" data-id=\"045ab2b6-6d77-43f7-a7b4-e275f41667c3\" data-label=\"Giving healing potion\" data-type=\"element\">giving_healing_potion<\/span>)"
-         * "script": "not visits(<span class=\"mention-element mention\" data-id=\"d852a577-bd1f-44cf-8187-77a86f97baef\" data-label=\"Get potion\" data-type=\"element\">get_potion<\/span>)"
-         * so if there is a string with data-id and the word visits, we will not transpile it
-         * we will just check the counter and return the output 
-         */
-        FString ScriptDataId = ExtractDataIdFromConditionScriptString(ConditionData.Script);
-
-        if (ScriptDataId.IsEmpty())
+        
+        FArcweaveBranchData CurrentBranch;
+        if (!GetBranchForObject(CurrentBranch, ConditionId, *NewBoardObj) || CurrentBranch.Id.IsEmpty())
         {
-            FArcweaveBranchData CurrentBranch;
-            if (!GetBranchForObject(CurrentBranch, ConditionId, *NewBoardObj) || CurrentBranch.Id.IsEmpty())
-            {
-                UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for branch condition with condition id: %s"), *ConditionId);
-                return Output;
-            }
-
-            //run the transpiler
-            FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
-            Output = RunTranspiler(ScriptModified, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits);
-
+            UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for branch condition with condition id: %s"), *ConditionId);
+            return Output;
         }
-        else
-        {
-            bool IsScriptsVisitsPositive = IsScriptVisitsPositive(ConditionData.Script);
-            const int* VisitsCounter = ProjectData.Visits.Find(ScriptDataId);
-            if (VisitsCounter)
-            {
-                Output.ConditionResult = *VisitsCounter > 0;
-                //we need the reverse result, the condition is not negated
-                if (IsScriptsVisitsPositive == false)
-                {
-                    Output.ConditionResult = !Output.ConditionResult;
-                }
 
-                //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id GET : %s is: %d conditionResult is: %d IsScriptsVisitsPositive %d"), *ScriptDataId, *VisitsCounter, Output.ConditionResult, IsScriptsVisitsPositive);
-            }
-        }
+        //run the transpiler
+        FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
+        Output = RunTranspiler(ScriptModified, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits);
+        
         Success = true;
     }
     catch (...)

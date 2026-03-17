@@ -168,7 +168,6 @@ private:
     FString ExtractDataIdFromConditionScriptString(const FString& ConditionScript);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
-    bool IsScriptVisitsPositive(const FString& ConditionScript);
     /* Increment visit counter for the given element id*/
     void IncrementVisits(const FString& ElementId);
     void ResetVisits();
