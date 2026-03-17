@@ -7,6 +7,7 @@
 #include "ArcweaveSettings.h"
 #include "ArcweaveTypes.h"
 #include "Engine/Engine.h"
+#include "Http.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
@@ -14,6 +15,7 @@
 void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 {
     FString ApiUrl = FString::Printf(TEXT("https://arcweave.com/api/%s/unreal"), *ProjectHash);
+    TryAddLanguageOptionToURL(ApiUrl);
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
     Request->SetVerb("GET");
@@ -26,6 +28,37 @@ void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 
     // Execute the request
     Request->ProcessRequest();
+}
+
+void UArcweaveSubsystem::TryAddLanguageOptionToURL(FString& ApiUrl)
+{
+    const UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    if (!IsValid(ArcweaveSettings))
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("ArcweaveSettings is not valid, cannot add language option to URL"));
+        return;
+    }
+
+    const FString DefaultLocale = ArcweaveSettings->GetLocale();
+    if (ArcweaveSettings->GetUseLocale() && !DefaultLocale.IsEmpty())
+    {
+        // Ensure the variable can be safely inserted in a URL by encoding it
+        FString EscapedDefaultLocale = FGenericPlatformHttp::UrlEncode(DefaultLocale);
+        // Add '?' or '&' depending on whether the URL already has query parameters
+        if (!ApiUrl.Contains(TEXT("?")))
+        {
+            ApiUrl += FString::Printf(TEXT("?locale=%s"), *EscapedDefaultLocale);
+        }
+        else
+        {
+            ApiUrl += FString::Printf(TEXT("&locale=%s"), *EscapedDefaultLocale);
+        }
+
+        if (ArcweaveSettings->GetFallbackToDefaultLocale())
+        {
+            ApiUrl += TEXT("&fallbackContents=true");
+        }
+    }
 }
 
 void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
@@ -100,6 +133,21 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
             {
                 UE_LOG(LogTemp, Warning, TEXT("Read Hash: %s"), *OutSetttings.Hash);
             }
+
+            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bUseLocale"), OutSetttings.bUseLocale, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read bUseLocale: %d"), OutSetttings.bUseLocale);
+            }
+
+            if(GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Locale"), OutSetttings.Locale, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read Locale: %s"), *OutSetttings.Locale);
+            }
+
+            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bFallbackToDefaultLocale"), OutSetttings.bFallbackToDefaultLocale, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read bFallbackToDefaultLocale: %d"), OutSetttings.bFallbackToDefaultLocale);
+            }
         }
     }
 	return OutSetttings;
@@ -119,6 +167,27 @@ void UArcweaveSubsystem::SaveArcweaveSettings(const FString& APIToken, const FSt
         ArcweaveSettings->Hash = ProjectHash;
         ArcweaveSettings->SaveConfig();
     }
+}
+
+void UArcweaveSubsystem::SaveArcweaveLanguageSettings(bool bUseLocale, bool bFallbackToDefaultLocale, const FString& CustomLocale)
+{
+    if (GConfig == nullptr)
+    {
+        return;
+    }
+
+    UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    check(IsValid(ArcweaveSettings));
+
+    ArcweaveSettings->SetUseLocale(bUseLocale);
+    if (bUseLocale)
+    {
+        ArcweaveSettings->SetFallbackToDefaultLocale(bFallbackToDefaultLocale);
+        ArcweaveSettings->SetLocale(CustomLocale);
+    }
+
+    ArcweaveSettings->SaveConfig();
+
 }
 
 bool UArcweaveSubsystem::GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj)
