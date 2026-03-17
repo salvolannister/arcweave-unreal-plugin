@@ -2,17 +2,18 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Misc/Paths.h"
-#include "Internationalization/Regex.h"
-#include "Interfaces/IHttpRequest.h"
-#include "HAL/FileManager.h"
-#include "Misc/FileHelper.h"
-#include "Misc/ConfigCacheIni.h"
-#include "Subsystems/GameInstanceSubsystem.h"
-#include "EngineGlobals.h"
-#include "Serialization/JsonSerializer.h"
 #include "ArcweaveTypes.h"
+#include "CoreMinimal.h"
+#include "EngineGlobals.h"
+#include "HAL/FileManager.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Internationalization/Regex.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Serialization/JsonSerializer.h"
+#include "Subsystems/GameInstanceSubsystem.h"
+
 #include "ArcweaveSubsystem.generated.h"
 
 struct FArcweaveAPISettings;
@@ -71,7 +72,7 @@ public:
     const FString ScriptData,
     bool& Success,
     bool bStripHtmlTags,
-    FArcweaveBoardData& BoardObjRef);
+    const FArcweaveBoardData& BoardObjRef);
     bool GetBoardForConnection(FString ConnectionId, FArcweaveConnectionsData& OutConnection, FArcweaveBoardData*& OutBoardObj);
 
     /*
@@ -89,6 +90,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Arcweave")
     void SetVariable(FString Id, FString NewValue);
 
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    void UpdateVariablesFromConnection(const FArcweaveConnectionsData& Connection);
+
     /*
      * Check if the target is the branch
      */    
@@ -101,6 +105,14 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "Arcweave")    
     FArcweaveConnectionsData GetConnectionsData(const FArcweaveBoardData BoardData, const FString& ConnectionId) const;
+
+    /*
+    * Update the label for the connection if contains some code,
+    * otherwise fallback to the raw label stored while parsing the content.
+    * Warning: Will not update the global variable values
+    */
+    UFUNCTION(BlueprintCallable, Category = "Arcweave")
+    FString TranspileConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData);
 
 public:
     
@@ -144,7 +156,8 @@ private:
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
     void ParseResponse(const FString& ResponseString);
     void OnEventCallback(const char* EventName);
-    FArcscriptTranspilerOutput RunTranspiler(FString Code, FString ElementId, TMap<FString, FArcweaveVariable> InitialVars, TMap<FString, int> Visits);
+    FArcscriptTranspilerOutput RunTranspiler(FString Code, FString ElementId, TMap<FString, FArcweaveVariable> InitialVars, TMap<FString, int> Visits, bool bShouldUpdateVariables = true);
+    void UpdateVariables(const FArcscriptTranspilerOutput& Output);
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId, FArcweaveBoardData& BoardObjRef);
     void EvaluateCondition(const FArcweaveConditionData& Condition, FArcscriptTranspilerOutput& TranspilerOutput);
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
@@ -153,6 +166,8 @@ private:
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
     bool IsScriptVisitsPositive(const FString& ConditionScript);
+    /** Check if ContentToTest contains code that needs transpiling */
+    bool ContainsCodePattern(const FString& ContentToTest) const;
 
 private:
     UPROPERTY()
