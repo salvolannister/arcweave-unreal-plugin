@@ -602,22 +602,6 @@ FString UArcweaveSubsystem::RemoveHtmlTags(const FString& InputString)
     return CleanedString;
 }
 
-FString UArcweaveSubsystem::ExtractDataIdFromConditionScriptString(const FString& ConditionScript)
-{
-    // Define the regex pattern to match the data-id value
-    FRegexPattern Pattern(TEXT("data-id=\\\"([\\w-]+)\\\""));
-    FRegexMatcher Matcher(Pattern, ConditionScript);
-
-    if (Matcher.FindNext())
-    {
-        // Return the matched data-id value
-        return Matcher.GetCaptureGroup(1);
-    }
-
-    // If no match is found, return an empty string or an error message
-    return FString("");
-}
-
 TArray<FArcweaveAssetData> UArcweaveSubsystem::ParseComponentAsset(const TSharedPtr<FJsonObject>& ComponentValueObject)
 {
     // Parse "assets" for components as an array of asset data structs

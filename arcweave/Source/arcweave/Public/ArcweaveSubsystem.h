@@ -164,8 +164,6 @@ private:
     FArcweaveElementData ExtractElementData(const TSharedPtr<FJsonObject>& MainJsonObject, const FString& ElementId, FArcweaveBoardData& BoardObjRef);
     void EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId, FArcscriptTranspilerOutput& TranspilerOutput);
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
-
-    FString ExtractDataIdFromConditionScriptString(const FString& ConditionScript);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
     /* Increment visit counter for the given element id*/
