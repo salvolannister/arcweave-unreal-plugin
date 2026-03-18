@@ -25,7 +25,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveResponseReceived, const F
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveVariableChanged, const TArray<FArcweaveVariable>&, ArcweaveVariables);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnArcweaveArcscriptEventReceived, const FString&, EventName);
 UCLASS()
-class ARCWEAVE_API UArcweaveSubsystem : public UGameInstanceSubsystem
+class ARCWEAVE_API UArcweaveSubsystem : public UEngineSubsystem
 {
 	GENERATED_BODY()
 	
