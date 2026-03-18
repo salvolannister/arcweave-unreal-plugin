@@ -1,5 +1,4 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-using System.IO;
 using UnrealBuildTool;
 
 public class arcweave : ModuleRules
@@ -64,6 +63,5 @@ public class arcweave : ModuleRules
                 "Settings"
             });
 
-        RuntimeDependencies.Add("$(TargetOutputDir)/antlr4-runtime.dll", Path.Combine(PluginDirectory, "Source/ThirdParty/ArcscriptTranspiler/lib/antlr4-runtime.dll"));
     }
 }
