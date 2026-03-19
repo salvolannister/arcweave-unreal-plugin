@@ -9,6 +9,7 @@
 // Plugin includes
 #include "ArcweaveLocaleData.h"
 #include "ArcweaveLocalizedText.h"
+#include "ArcweaveContents.h"
 
 #include "ArcweaveTypes.generated.h"
 /**
@@ -507,13 +508,15 @@ struct FArcweaveProjectData
     //project connections
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveConnectionsData> Connections = TArray<FArcweaveConnectionsData>();
- 
+    UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
+    TMap<FString, int> Visits = TMap<FString, int>();
+
     //project languages, it can be one so this value is an optional
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
     TArray<FArcweaveLocaleData> Locales = TArray<FArcweaveLocaleData>();
- 
+
     UPROPERTY(BlueprintReadWrite, Category = "Arcweave")
-    TMap<FString, int> Visits = TMap<FString, int>();
+    FArcweaveContents Contents = FArcweaveContents();
 
     //constructor
     FArcweaveProjectData()
@@ -524,6 +527,7 @@ struct FArcweaveProjectData
         , Components(TArray<FArcweaveComponentData>())
         , Visits(TMap<FString, int>())
         , Locales(TArray<FArcweaveLocaleData>())
+        , Contents(FArcweaveContents())
     {}
 };
 
