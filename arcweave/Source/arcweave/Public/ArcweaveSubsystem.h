@@ -184,7 +184,6 @@ private:
     FArcweaveCoverData ParseCoverData(const TSharedPtr<FJsonObject>& CoverValueObject);
     /** Looks for the locales configuration in the project and try to parse it */
     TArray<FArcweaveLocaleData> ParseProjectLocales(const TSharedPtr<FJsonObject>& MainJsonObject);
-    FArcweaveLocalizedText ParseElementTranslations(const TSharedPtr<FJsonObject> ComponentValueObject,const FStringView& FieldName);
     void ParseResponse(const FString& ResponseString);
     FArcweaveContents ParseAllContents(const TSharedPtr<FJsonObject>& MainJsonObject);
     void OnEventCallback(const char* EventName);
@@ -196,6 +195,12 @@ private:
     FArcweaveConnectionsData TryGetNExtConnectionData(const FArcweaveBoardData& BoardData, const FArcweaveBranchData& Branch, const FArcweaveConditionData* FiredConditionData);
     void LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput);
     bool GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj);
+    /* Given a locale iso, will look for the corresponding fallback locale*/
+    FString GetFallbackLanguageForLocale(const FString& Locale) const;
+    FString GetTranslatedContent(const FString& ContentKey, const FString& FieldName, const FString& CurrentLocale, bool ShouldFallback /* =true */) const;
+    // Helper function to get desired locale and fallback flag from ArcweaveSettings
+    void GetLanguageSettings(FString& OutDesiredLocale, bool& OutFallbackToDefaultLanguage);
+
     /* Increment visit counter for the given element id*/
     void IncrementVisits(const FString& ElementId);
     void ResetVisits();
