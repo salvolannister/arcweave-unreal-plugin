@@ -556,7 +556,7 @@ FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsD
 
 bool UArcweaveSubsystem::HasLocales() const
 {
-    return ProjectData.Locales.Num() > 0;
+    return ProjectData.Locales.Num() > 1;
 }
 
 FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success, bool bStripHtmlTags /*true*/)
@@ -1485,7 +1485,7 @@ void UArcweaveSubsystem::UpdateContentsWithLocale(const FString& DesiredLocale)
     {
         for (FArcweaveElementData& element : board.Elements)
         {
-            element.Title = GetTranslatedContent(element.Id, TEXT("title"), DesiredLocale, bFallbackToDefaultLanguage);
+            element.Title = RemoveHtmlTags(GetTranslatedContent(element.Id, TEXT("title"), DesiredLocale, bFallbackToDefaultLanguage));
             element.Content = GetTranslatedContent(element.Id, TEXT("content"), DesiredLocale, bFallbackToDefaultLanguage);
 
             for (auto& component : element.Components)
@@ -1567,7 +1567,8 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
 
             if (!ContentData.IsValid())
             {
-                return ParsedContents;
+                UE_LOG(LogArcwarePlugin, Warning, TEXT("UArcweaveSubsystem::ParseAllContents: Invalid ContentData for ContentId '%s'. Skipping this entry."), *ContentId);
+                continue;
             }
 
             FArcweaveContent ArcweaveContent;
@@ -1586,8 +1587,6 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
 
                 if (LocalizedObject.IsValid())
                 {
-                    FArcweaveLocalizedText LocalizedText;
-
                     // Parse translations for each locale
                     for (const auto& LocalePair : LocalizedObject->Values)
                     {
