@@ -1604,8 +1604,6 @@ FArcweaveContents UArcweaveSubsystem::ParseAllContents(const TSharedPtr<FJsonObj
         }
     }
 
-    ParsedContents.PrintContents();
-
     return ParsedContents;
 }
 
