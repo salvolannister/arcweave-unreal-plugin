@@ -1,12 +1,16 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
+// File includes
 #include "ArcweaveSubsystem.h"
 
+// Arcweave includes
 #include "Arcweave.h"
 #include "ArcweaveSettings.h"
 #include "ArcweaveTypes.h"
+
+// Engine includes
 #include "Engine/Engine.h"
+#include "Http.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Interfaces/IPluginManager.h"
@@ -14,6 +18,7 @@
 void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 {
     FString ApiUrl = FString::Printf(TEXT("https://arcweave.com/api/%s/unreal"), *ProjectHash);
+    TryAddLanguageOptionToURL(ApiUrl);
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
     Request->SetVerb("GET");
@@ -26,6 +31,37 @@ void UArcweaveSubsystem::FetchDataFromAPI(FString APIToken, FString ProjectHash)
 
     // Execute the request
     Request->ProcessRequest();
+}
+
+void UArcweaveSubsystem::TryAddLanguageOptionToURL(FString& ApiUrl)
+{
+    const UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    if (!IsValid(ArcweaveSettings))
+    {
+        UE_LOG(LogArcwarePlugin, Warning, TEXT("ArcweaveSettings is not valid, cannot add language option to URL"));
+        return;
+    }
+
+    const FString DefaultLocale = ArcweaveSettings->GetLocale();
+    if (ArcweaveSettings->GetUseLocale() && !DefaultLocale.IsEmpty())
+    {
+        // Ensure the variable can be safely inserted in a URL by encoding it
+        FString EscapedDefaultLocale = FGenericPlatformHttp::UrlEncode(DefaultLocale);
+        // Add '?' or '&' depending on whether the URL already has query parameters
+        if (!ApiUrl.Contains(TEXT("?")))
+        {
+            ApiUrl += FString::Printf(TEXT("?locale=%s"), *EscapedDefaultLocale);
+        }
+        else
+        {
+            ApiUrl += FString::Printf(TEXT("&locale=%s"), *EscapedDefaultLocale);
+        }
+
+        if (ArcweaveSettings->GetFallbackToDefaultLocale())
+        {
+            ApiUrl += TEXT("&fallbackContents=true");
+        }
+    }
 }
 
 void UArcweaveSubsystem::FetchData(FString APIToken, FString ProjectHash)
@@ -100,6 +136,21 @@ FArcweaveAPISettings UArcweaveSubsystem::LoadArcweaveSettings() const
             {
                 UE_LOG(LogTemp, Warning, TEXT("Read Hash: %s"), *OutSetttings.Hash);
             }
+
+            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bUseLocale"), OutSetttings.bUseLocale, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read bUseLocale: %d"), OutSetttings.bUseLocale);
+            }
+
+            if(GConfig->GetString(ARCWEAVE_SETTINGS_SECTION, TEXT("Locale"), OutSetttings.Locale, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read Locale: %s"), *OutSetttings.Locale);
+            }
+
+            if(GConfig->GetBool(ARCWEAVE_SETTINGS_SECTION, TEXT("bFallbackToDefaultLocale"), OutSetttings.bFallbackToDefaultLocale, GGameIni))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Read bFallbackToDefaultLocale: %d"), OutSetttings.bFallbackToDefaultLocale);
+            }
         }
     }
 	return OutSetttings;
@@ -119,6 +170,27 @@ void UArcweaveSubsystem::SaveArcweaveSettings(const FString& APIToken, const FSt
         ArcweaveSettings->Hash = ProjectHash;
         ArcweaveSettings->SaveConfig();
     }
+}
+
+void UArcweaveSubsystem::SaveArcweaveLanguageSettings(bool bUseLocale, bool bFallbackToDefaultLocale, const FString& CustomLocale)
+{
+    if (GConfig == nullptr)
+    {
+        return;
+    }
+
+    UArcweaveSettings* ArcweaveSettings = GetMutableDefault<UArcweaveSettings>();
+    check(IsValid(ArcweaveSettings));
+
+    ArcweaveSettings->SetUseLocale(bUseLocale);
+    if (bUseLocale)
+    {
+        ArcweaveSettings->SetFallbackToDefaultLocale(bFallbackToDefaultLocale);
+        ArcweaveSettings->SetLocale(CustomLocale);
+    }
+
+    ArcweaveSettings->SaveConfig();
+
 }
 
 bool UArcweaveSubsystem::GetBoardObjectForElement(FString ConditionId, FArcweaveConditionData& OutConditionData, FArcweaveBoardData*& OutBoardObj)
@@ -156,69 +228,90 @@ bool UArcweaveSubsystem::GetBoardObjectForElement(FString ConditionId, FArcweave
     return false;
 }
 
-bool UArcweaveSubsystem::IsScriptVisitsPositive(const FString& ConditionScript)
+bool UArcweaveSubsystem::ContainsCodePattern(const FString& ContentToTest) const
 {
-    // Check for "not visits" first to handle the negation case
-    if (ConditionScript.Contains(TEXT("not visits"), ESearchCase::IgnoreCase, ESearchDir::FromStart))
-    {
-        return false;
-    }
-    else if (ConditionScript.Contains(TEXT("visits"), ESearchCase::IgnoreCase, ESearchDir::FromStart))
-    {
-        return true; // Found a relevant mention
-    }
-    
-    return false;
+    const FRegexPattern CodeBlockPattern(TEXT(R"(<pre><code>[\s\S]*?</code></pre>)"));
+    FRegexMatcher Matcher(CodeBlockPattern, ContentToTest);
+
+    return Matcher.FindNext();
 }
 
-FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(FString ConditionId, bool& Success)
+void UArcweaveSubsystem::IncrementVisits(const FString& ElementId)
+{
+    if (ElementId.IsEmpty())
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot increment visits counter for empty object id"));
+        return;
+    }
+
+    if (ProjectData.Visits.Contains(ElementId))
+    {
+        ProjectData.Visits[ElementId]++;
+    }
+    else
+    {
+        ProjectData.Visits.Add(ElementId, 1);
+    }
+}
+
+void UArcweaveSubsystem::PrintBranchData(const FArcweaveBranchData& InData)
+{
+        UE_LOG(LogArcwarePlugin, Display, TEXT("------------- START DEBUG BRANCH DATA-------------"), *InData.Id);
+        UE_LOG(LogArcwarePlugin, Display, TEXT("Branch Id: %s"), *InData.Id);
+        UE_LOG(LogArcwarePlugin, Display, TEXT("  IfCondition: Id=%s, Output=%s, Script=%s"),
+            *InData.IfCondition.Id, *InData.IfCondition.Output, *InData.IfCondition.Script);
+        UE_LOG(LogArcwarePlugin, Display, TEXT("  ElseCondition: Id=%s, Output=%s, Script=%s"),
+            *InData.ElseCondition.Id, *InData.ElseCondition.Output, *InData.ElseCondition.Script);
+
+        if (InData.ElseIfConditions.Num() > 0)
+        {
+            for (int32 i = 0; i < InData.ElseIfConditions.Num(); ++i)
+            {
+                const FArcweaveConditionData& ElseIf = InData.ElseIfConditions[i];
+                UE_LOG(LogArcwarePlugin, Display, TEXT("  ElseIfCondition[%d]: Id=%s, Output=%s, Script=%s"),
+                    i, *ElseIf.Id, *ElseIf.Output, *ElseIf.Script);
+            }
+        }
+
+        UE_LOG(LogArcwarePlugin, Display, TEXT("------------- END DEBUG BRANCH DATA-------------"), *InData.Id);
+
+}
+
+FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString& ConditionId, const FString& OriginElementId, bool& Success)
 {
     UE_LOG(LogArcwarePlugin, Log, TEXT("----- TranspileCondition for id: %s -----"), *ConditionId);
     Success = false;
     FArcscriptTranspilerOutput Output;
     FArcweaveConditionData ConditionData;
     FArcweaveBoardData* NewBoardObj = nullptr;
+ 
+    // Rertreive condition data
     if(GetBoardObjectForElement(ConditionId, ConditionData, NewBoardObj) == false)
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for condition id: %s"), *ConditionId);
         return Output;
     }
+
     if (NewBoardObj->BoardId.IsEmpty() || ConditionData.Id.IsEmpty())
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for condition id: %s"), *ConditionId);
         return Output;
     }
+
     try
     {
-        //here we are checking if the condition is a visit counter
-        //this is the format of the visit counter condition
-        //"script": "visits(<span class=\"mention-element mention\" data-id=\"045ab2b6-6d77-43f7-a7b4-e275f41667c3\" data-label=\"Giving healing potion\" data-type=\"element\">giving_healing_potion<\/span>)"
-        //"script": "not visits(<span class=\"mention-element mention\" data-id=\"d852a577-bd1f-44cf-8187-77a86f97baef\" data-label=\"Get potion\" data-type=\"element\">get_potion<\/span>)"
-        //so if there is a string with data-id and the word visits, we will not transpile it
-        //we will just check the counter and return the output
-        FString ScriptDataId = ExtractDataIdFromConditionScriptString(ConditionData.Script);
-        if (ScriptDataId.IsEmpty())
+        
+        FArcweaveBranchData CurrentBranch;
+        if (!GetBranchForObject(CurrentBranch, ConditionId, *NewBoardObj) || CurrentBranch.Id.IsEmpty())
         {
-            //run the transpiler
-            FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
-            ProjectData.Visits[ConditionId] += 1;
-            Output = RunTranspiler(ScriptModified, ConditionData.Id, ProjectData.CurrentVars, ProjectData.Visits);
+            UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for branch condition with condition id: %s"), *ConditionId);
+            return Output;
         }
-        else
-        {
-            bool IsScriptsVisitsPositive = IsScriptVisitsPositive(ConditionData.Script);
-            const int* VisitsCounter = ProjectData.Visits.Find(ScriptDataId);
-            if (VisitsCounter)
-            {
-                Output.ConditionResult = *VisitsCounter > 0;
-                //we need the reverse result, the condition is not negated
-                if (IsScriptsVisitsPositive == false)
-                {
-                    Output.ConditionResult = !Output.ConditionResult;
-                }
-                //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id GET : %s is: %d conditionResult is: %d IsScriptsVisitsPositive %d"), *ScriptDataId, *VisitsCounter, Output.ConditionResult, IsScriptsVisitsPositive);
-            }
-        }
+
+        //run the transpiler
+        FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
+        Output = RunTranspiler(ScriptModified, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits);
+        
         Success = true;
     }
     catch (...)
@@ -245,6 +338,29 @@ bool UArcweaveSubsystem::GetBoardForObject(FString ObjectId, FArcweaveElementDat
     return false;
 }
 
+bool UArcweaveSubsystem::GetBranchForObject(FArcweaveBranchData& OutBranch, const FString& ObjectId, const FArcweaveBoardData& InBoardObj) const
+{
+    for (auto& Branch : InBoardObj.Branches)
+    {
+        if (ObjectId == Branch.IfCondition.Id || ObjectId == Branch.ElseCondition.Id)
+        {
+            OutBranch = Branch;
+            return true;
+        }
+
+        for (auto& ElseIfCondition : Branch.ElseIfConditions)
+        {
+            if (ElseIfCondition.Id == ObjectId)
+            {
+                OutBranch = Branch;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 void UArcweaveSubsystem::SetVariable(FString Id, FString NewValue)
 {
     if (Id.IsEmpty())
@@ -265,13 +381,13 @@ void UArcweaveSubsystem::SetVariable(FString Id, FString NewValue)
     }
 }
 
-void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Condition, FArcscriptTranspilerOutput& TranspilerOutput)
+void UArcweaveSubsystem::EvaluateCondition(const FArcweaveConditionData& Condition, const FString& OriginElementId, FArcscriptTranspilerOutput& TranspilerOutput)
 {
     UE_LOG(LogArcwarePlugin, Warning,
         TEXT("Transpiling condition %s..."), *Condition.Id);
 
     bool bTranspileSucceeded = false;
-    TranspilerOutput = TranspileCondition(Condition.Id, bTranspileSucceeded);
+    TranspilerOutput = TranspileCondition(Condition.Id, OriginElementId, bTranspileSucceeded);
 
     if (!bTranspileSucceeded)
     {
@@ -322,7 +438,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
         Result.BranchData = Branch;
         const FArcweaveConditionData* FiredConditionData = nullptr;
         FArcscriptTranspilerOutput TranspilerOutput = FArcscriptTranspilerOutput();
-        EvaluateCondition(Branch.IfCondition, TranspilerOutput);
+        EvaluateCondition(Branch.IfCondition, TargetConnection.Sourceid, TranspilerOutput);
         Result.BranchConditionResult = TranspilerOutput.ConditionResult;
 
         if (Result.BranchConditionResult)
@@ -339,7 +455,7 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
         {
             for (const auto& ElseIf : Branch.ElseIfConditions)
             {
-                EvaluateCondition(ElseIf, TranspilerOutput);
+                EvaluateCondition(ElseIf, TargetConnection.Sourceid, TranspilerOutput);
                 if (TranspilerOutput.ConditionResult)
                 {
                     FiredConditionData = &ElseIf;
@@ -361,6 +477,10 @@ FGetIsTargetBranchOutput UArcweaveSubsystem::GetIsTargetBranch(
                 if (!Next.Id.IsEmpty())
                 {
                     Result.BranchConnections.Add(MoveTemp(Next));
+                }
+                else
+                {
+                    UE_LOG(LogArcwarePlugin, Warning, TEXT("Connection ID is empty, not adding to BranchConnections"));
                 }
             }
             break;
@@ -385,6 +505,26 @@ FArcweaveConnectionsData UArcweaveSubsystem::GetConnectionsData(const FArcweaveB
         return Result;
 }
 
+FString UArcweaveSubsystem::TranspileConnectionLabel(const FArcweaveConnectionsData& Connection, const FArcweaveBoardData& BoardData)
+{
+    bool bSuccess = false;
+    FArcscriptTranspilerOutput Output = TranspileConnection(
+        Connection.Id,
+        Connection.Label,
+        Connection.Sourceid,
+        bSuccess,
+        true,
+        BoardData
+    );
+
+    if (bSuccess)
+    {
+        return Output.Output;
+    }
+
+    return Connection.Label;
+}
+
 FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool& Success, bool bStripHtmlTags /*true*/)
 {
     Success = false;
@@ -396,6 +536,7 @@ FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool&
         UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for element id: %s"), *ObjectId);
         return Element;
     }
+
     if (NewBoardObj->BoardId.IsEmpty() || Element.Id.IsEmpty())
     {
         UE_LOG(LogArcwarePlugin, Error, TEXT(" Cannot find transpile data for element id: %s"), *ObjectId);
@@ -404,7 +545,8 @@ FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool&
     //run the transpiler
     try
     {
-        ProjectData.Visits[ObjectId] += 1;
+        IncrementVisits(Element.Id);
+
         FArcscriptTranspilerOutput Output = RunTranspiler(Element.Content, Element.Id, ProjectData.CurrentVars, ProjectData.Visits);
         //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id: %s is: %d"), *ObjectId, NewBoardObj->Visits[ObjectId]);
         if (bStripHtmlTags)
@@ -425,39 +567,55 @@ FArcweaveElementData UArcweaveSubsystem::TranspileObject(FString ObjectId, bool&
 }
 
 FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
-    FString ConnectionId,
-    const FString ScriptData,
+    const FString& ConnectionId,
+    const FString& ScriptData,
+    const FString& OriginElementId,
     bool& Success,
     bool bStripHtmlTags,
-    FArcweaveBoardData& BoardObjRef)
+    const FArcweaveBoardData& BoardObjRef)
 {
     Success = false;
     FArcscriptTranspilerOutput Output;
     FArcweaveConnectionsData Connection;
-    if (BoardObjRef.BoardId.IsEmpty() || ConnectionId.IsEmpty())
+
+    // Validate input parameters
+    if (ConnectionId.IsEmpty())
     {
-        UE_LOG(LogArcwarePlugin, Error, TEXT(" Cannot find transpile data for connection id: %s"), *ConnectionId);
+        UE_LOG(LogArcwarePlugin, Error, TEXT("TranspileConnection failed: ConnectionId is empty"));
         return Output;
     }
+
+    if (OriginElementId.IsEmpty())
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("TranspileConnection failed: OriginElementId is empty"));
+        return Output;
+    }
+
+    if (ScriptData.IsEmpty())
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("TranspileConnection failed: ScriptData is empty for connection id: %s"), *ConnectionId);
+        return Output;
+    }
+
+    if (BoardObjRef.BoardId.IsEmpty())
+    {
+        UE_LOG(LogArcwarePlugin, Error, TEXT("TranspileConnection failed: BoardObjRef.BoardId is empty for connection id: %s"), *ConnectionId);
+        return Output;
+    }
+
     //run the transpiler
     try
     {
-        //FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
-        if (ProjectData.Visits.Contains(ConnectionId))
-        {
-            ProjectData.Visits[ConnectionId] += 1;
-        }
-        else
-        {
-            ProjectData.Visits.Add(ConnectionId, 1);
-        }
-        Output = RunTranspiler(ScriptData, ConnectionId, ProjectData.CurrentVars, ProjectData.Visits);
+        Output = RunTranspiler(ScriptData, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, false);
         if (bStripHtmlTags)
         {
             Output.Output = RemoveHtmlTags(Output.Output);
         }
-        //UE_LOG(LogArcwarePlugin, Log, TEXT("Visits counter for id: %s is: %d"), *ObjectId, ProjectData.Visits[ObjectId]);
-        Success = true;
+
+        if (!Output.Output.IsEmpty())
+        {
+            Success = true;
+        }
     }
     catch (...)
     {
@@ -511,22 +669,6 @@ FString UArcweaveSubsystem::RemoveHtmlTags(const FString& InputString)
     }
 
     return CleanedString;
-}
-
-FString UArcweaveSubsystem::ExtractDataIdFromConditionScriptString(const FString& ConditionScript)
-{
-    // Define the regex pattern to match the data-id value
-    FRegexPattern Pattern(TEXT("data-id=\\\"([\\w-]+)\\\""));
-    FRegexMatcher Matcher(Pattern, ConditionScript);
-
-    if (Matcher.FindNext())
-    {
-        // Return the matched data-id value
-        return Matcher.GetCaptureGroup(1);
-    }
-
-    // If no match is found, return an empty string or an error message
-    return FString("");
 }
 
 TArray<FArcweaveAssetData> UArcweaveSubsystem::ParseComponentAsset(const TSharedPtr<FJsonObject>& ComponentValueObject)
@@ -690,28 +832,15 @@ TArray<FArcweaveConnectionsData> UArcweaveSubsystem::ParseConnections(const FStr
 
                                 if (ConObject->TryGetStringField(TEXT("label"), RawLabel))
                                 {
-                                    const FRegexPattern CodeBlockPattern(TEXT(R"(<pre><code>[\s\S]*?</code></pre>)"));
-                                    FRegexMatcher Matcher(CodeBlockPattern, RawLabel);
-                                    if (Matcher.FindNext())
-                                    {
-                                        bool bTranspileSucceeded = false;
-                                        FArcscriptTranspilerOutput TranspilerOutput = TranspileConnection(
-                                            Connection.Id,
-                                            RawLabel,
-                                            bTranspileSucceeded,
-                                            true,
-                                            BoardObjRef);
 
-                                        if (!bTranspileSucceeded)
-                                        {
-                                            UE_LOG(LogArcwarePlugin, Error,
-                                                TEXT("Transpile failed for connection %s"), *Connection.Id);
-                                            //Connection.Label = RemoveHtmlTags(RawLabel);
-                                        }
-                                        Connection.Label = TranspilerOutput.Output;
+                                    if (ContainsCodePattern(RawLabel))
+                                    {
+                                        // Keep the raw code so it can be analyzed later
+                                        Connection.Label = RawLabel;
                                     }
                                     else
                                     {
+                                        // no code: html tag can be removed
                                         Connection.Label = RemoveHtmlTags(RawLabel);
                                     }
                                 }
@@ -1198,85 +1327,134 @@ void UArcweaveSubsystem::OnEventCallback(const char* EventName)
     if (EventNameFString == "resetVisits")
     {
         // Reset visits in ProjectData
-        for (auto& VisitPair : ProjectData.Visits)
-        {
-            VisitPair.Value = 0;
-        }
+        ResetVisits();
     }
 
     // Broadcast the event to any listeners
     OnArcscriptEventReceived.Broadcast(EventNameFString);
 }
 
-FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(FString Code, FString ElementId,
-    TMap<FString, FArcweaveVariable> InitialVars, TMap<FString, int> Visits)
+void UArcweaveSubsystem::ResetVisits()
 {
+    for (auto& VisitPair : ProjectData.Visits)
+    {
+        VisitPair.Value = 0;
+    }
+}
+
+FArcscriptTranspilerOutput UArcweaveSubsystem::RunTranspiler(const FString& NodeCode, const FString& OriginElementId,
+    const TMap<FString, FArcweaveVariable>& InitialVars, const TMap<FString, int>& Visits, bool bShouldUpdateVariables /* = true*/)
+{
+    // Create output
     FArcscriptTranspilerOutput Output;
-    bool IsVariableChanged = false;
 
     FarcweaveModule* arcweaveModule = FModuleManager::GetModulePtr<FarcweaveModule>("Arcweave");
     UArcscriptTranspilerWrapper* ArcscriptWrapper = arcweaveModule->getArcscriptWrapper();
+
+    // allocate arcscript wrapper
+    
     if (ArcscriptWrapper)
     {
-        UE_LOG(LogArcwarePlugin, Display, TEXT("Code=%s"), *Code);
-        UE_LOG(LogArcwarePlugin, Display, TEXT("ElementId=%s"), *ElementId);
-        Output = ArcscriptWrapper->RunScript(Code, ElementId, InitialVars, Visits, std::bind(&UArcweaveSubsystem::OnEventCallback, this, std::placeholders::_1));
-        LogTranspilerOutput(Output);
-        // brodacast event if there where any changes
-        TArray<FArcweaveVariable> ChangedVariables;
-        for (const FArcscriptVariableChange& Change : Output.Changes)
-        {
-            if (Change.Value.IsValid())
-            {
-                IsVariableChanged = true;
-                FArcweaveVariable Variable;
-                Variable.Id = Change.Id;
-                Variable.Type = Change.Type;
-                Variable.Name = ProjectData.CurrentVars.Contains(Change.Id) ? ProjectData.CurrentVars[Change.Id].Name : "Unknown";
-                UE_LOG(LogArcwarePlugin, Display, TEXT("Id='%s'"), *Change.Id);
-                UE_LOG(LogArcwarePlugin, Display, TEXT("Type='%s'"), *Change.Type);
-                if (Change.Type == "string") {
-                    Variable.Value = Change.Value->AsString();
-                }
-                else if (Variable.Type == "integer") {
-                    int outInt = 0;
-                    Change.Value->TryGetNumber(outInt);
-                    Variable.Value.AppendInt(outInt);
-                }
-                else if (Variable.Type == "bool") {
-                    Variable.Value = FString::Printf(TEXT("%s"), Change.Value->AsBool() ? TEXT("true") : TEXT("false"));
-                }
-                else if (Variable.Type == "float")
-                {
-                    float outFloat = 0;
-                    Change.Value->TryGetNumber(outFloat);
-                    Variable.Value = FString::SanitizeFloat(outFloat);
-                }
-                ChangedVariables.Add(Variable);
+        UE_LOG(LogArcwarePlugin, Display, TEXT("Code=%s"), *NodeCode);
+        UE_LOG(LogArcwarePlugin, Display, TEXT("ElementId=%s"), *OriginElementId);
+        Output = ArcscriptWrapper->RunScript(NodeCode, OriginElementId, InitialVars, Visits, std::bind(&UArcweaveSubsystem::OnEventCallback, this, std::placeholders::_1));
 
-                //find this variable in project data and update it
-                for (auto& VarPair : ProjectData.CurrentVars)
-                {
-                    if (VarPair.Key == Variable.Id)
-                    {
-                        VarPair.Value.Value = Variable.Value;
-                        UE_LOG(LogArcwarePlugin, Display, TEXT("Update variable id %s, value %s"), *Variable.Id, *VarPair.Value.Value);
-                        break;
-                    }
-                }
-            }
-        }
-        if (IsVariableChanged)
+        LogTranspilerOutput(Output);
+
+        if (bShouldUpdateVariables)
         {
-            OnArcweaveVariableChanged.Broadcast(ChangedVariables);            
+            UpdateVariables(Output);
         }
+
     }
-    else {
+    else
+    {
         UE_LOG(LogArcwarePlugin, Error, TEXT("ArcscriptWrapper not initialized"));
     }
     
     return Output;
 }
+
+void UArcweaveSubsystem::UpdateVariables(const FArcscriptTranspilerOutput& Output)
+{
+    bool IsVariableChanged = false;
+    TArray<FArcweaveVariable> ChangedVariables;
+    for (const FArcscriptVariableChange& Change : Output.Changes)
+    {
+        if (Change.Value.IsValid())
+        {
+            IsVariableChanged = true;
+            FArcweaveVariable Variable;
+            Variable.Id = Change.Id;
+            Variable.Type = Change.Type;
+            Variable.Name = ProjectData.CurrentVars.Contains(Change.Id) ? ProjectData.CurrentVars[Change.Id].Name : "Unknown";
+
+            UE_LOG(LogArcwarePlugin, Display, TEXT("Id='%s'"), *Change.Id);
+            UE_LOG(LogArcwarePlugin, Display, TEXT("Type='%s'"), *Change.Type);
+
+            if (Change.Type == "string")
+            {
+                Variable.Value = Change.Value->AsString();
+            }
+            else if (Variable.Type == "integer")
+            {
+                int outInt = 0;
+                Change.Value->TryGetNumber(outInt);
+                Variable.Value.AppendInt(outInt);
+            }
+            else if (Variable.Type == "bool")
+            {
+                Variable.Value = FString::Printf(TEXT("%s"), Change.Value->AsBool() ? TEXT("true") : TEXT("false"));
+            }
+            else if (Variable.Type == "float")
+            {
+                float outFloat = 0;
+                Change.Value->TryGetNumber(outFloat);
+                Variable.Value = FString::SanitizeFloat(outFloat);
+            }
+
+            ChangedVariables.Add(Variable);
+
+            //find this variable in project data and update it
+            for (auto& VarPair : ProjectData.CurrentVars)
+            {
+                if (VarPair.Key == Variable.Id)
+                {
+                    VarPair.Value.Value = Variable.Value;
+                    UE_LOG(LogArcwarePlugin, Display, TEXT("Update variable id %s, value %s"), *Variable.Id, *VarPair.Value.Value);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Broadcast changes
+    if (IsVariableChanged)
+    {
+        OnArcweaveVariableChanged.Broadcast(ChangedVariables);
+    }
+}
+
+void UArcweaveSubsystem::UpdateVariablesFromConnection(const FArcweaveConnectionsData& Connection)
+{
+
+    //find the connection in the project data
+    for (const FArcweaveBoardData& Board : ProjectData.Boards)
+    {
+        for (const FArcweaveConnectionsData& Con : Board.Connections)
+        {
+            if (Con.Id == Connection.Id)
+            {
+                RunTranspiler(Con.Label, Con.Id, ProjectData.CurrentVars, ProjectData.Visits, true);
+                return;
+            }
+        }
+    }
+
+    UE_LOG(LogArcwarePlugin, Warning, TEXT("Connection with id %s not found in project data"), *Connection.Id);
+
+}
+
 
 void UArcweaveSubsystem::LogTranspilerOutput(const FArcscriptTranspilerOutput& TranspilerOutput)
 {
