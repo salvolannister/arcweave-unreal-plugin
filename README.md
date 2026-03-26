@@ -28,11 +28,6 @@ To install the Arcweave Plugin for Unreal Engine, follow these steps:
 3. Open your project.
 4. If prompted to rebuild the Arcweave plugin, click **Yes**.
 
-## Packaging
-If after packaging the project, in Windows, you have the message "Failed to load ArcscriptTranspiler.dll", you need to:
-1) Copy "antlr4-runtime.dll" from the folder "YOUR_PROJECT_NAME\Plugins\arcweave\Source\ThirdParty\ArcscriptTranspiler\lib\"
-2) Paste it inside the folder of the package "YOUR_BUILD_FOLDER\Windows\YOUR_PROJECT_NAME\Plugins\arcweave\Source\ThirdParty\ArcscriptTranspiler\lib\"
-
 ## Data Collection Methods
 There are two primary methods for collecting Arcweave project data:
 
@@ -40,7 +35,10 @@ There are two primary methods for collecting Arcweave project data:
 For this method, you'll need to do the following: 
 - Export your Arcweave project for Unreal Engine and unzip it.
 - Move the exported JSON file along with all required assets in the **Content->ArcweaveExport** directory. If this directory does not exist create it.
+- ⚠️ Make sure you set the thick to the field "Enable receive method from local JSON" inside Unreal under ProjectSettings at the tab "Arcweave Settings"
   
+  <img width="686" height="55" alt="immagine" src="https://github.com/user-attachments/assets/e372638f-e237-4a5b-bd16-09382a8252d1" />
+
 ### Web API:
 This involves fetching data directly from the Arcweave Web API within Unreal Engine. You will need:
 
