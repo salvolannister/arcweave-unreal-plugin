@@ -2,7 +2,10 @@
 
 #pragma once
 
+// Plugin includes
 #include "ArcweaveTypes.h"
+
+// Engine includes
 #include "CoreMinimal.h"
 #include "EngineGlobals.h"
 #include "HAL/FileManager.h"
@@ -12,7 +15,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
-#include "Subsystems/GameInstanceSubsystem.h"
+#include "Subsystems/EngineSubsystem.h"
 
 #include "ArcweaveSubsystem.generated.h"
 
