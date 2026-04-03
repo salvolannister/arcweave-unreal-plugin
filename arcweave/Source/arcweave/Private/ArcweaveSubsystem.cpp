@@ -300,13 +300,6 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileCondition(const FString&
 
     try
     {
-        
-        FArcweaveBranchData CurrentBranch;
-        if (!GetBranchForObject(CurrentBranch, ConditionId, *NewBoardObj) || CurrentBranch.Id.IsEmpty())
-        {
-            UE_LOG(LogArcwarePlugin, Error, TEXT("Cannot find transpile data for branch condition with condition id: %s"), *ConditionId);
-            return Output;
-        }
 
         //run the transpiler
         FString ScriptModified = FString("<pre><code>") + ConditionData.Script + FString("</code></pre>");
@@ -606,7 +599,7 @@ FArcscriptTranspilerOutput UArcweaveSubsystem::TranspileConnection(
     //run the transpiler
     try
     {
-        Output = RunTranspiler(ScriptData, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, false);
+        Output = RunTranspiler(ScriptData, OriginElementId, ProjectData.CurrentVars, ProjectData.Visits, true);
         if (bStripHtmlTags)
         {
             Output.Output = RemoveHtmlTags(Output.Output);
